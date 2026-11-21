@@ -3,7 +3,7 @@
 #
 # Potřebné nastavení v GitHubu (Settings → Secrets and variables → Actions):
 #   secret   CLASPRC_JSON  – obsah ~/.clasprc.json po `clasp login` (viz README)
-#   variable SCRIPT_ID     – ID skriptu (Apps Script → Nastavení projektu → ID skriptu)
+#   variable SCRIPT_ID     – (nebo secret) ID skriptu (Apps Script → Nastavení projektu → ID skriptu)
 # ID nasazení se bere z apiUrl v docs/config.json (…/macros/s/<ID>/exec).
 name: Backend (Apps Script)
 
@@ -39,10 +39,13 @@ jobs:
         id: check
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
-          SCRIPT_ID: ${{ vars.SCRIPT_ID }}
+          SCRIPT_ID: ${{ vars.SCRIPT_ID || secrets.SCRIPT_ID }}
         run: |
-          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ]; then
-            echo "::warning::Chybí secret CLASPRC_JSON nebo proměnná SCRIPT_ID – backend se nenasadil (viz README)."
+          missing=""
+          [ -z "$CLASPRC_JSON" ] && missing="$missing secret CLASPRC_JSON"
+          [ -z "$SCRIPT_ID" ] && missing="$missing SCRIPT_ID (repository variable nebo secret)"
+          if [ -n "$missing" ]; then
+            echo "::warning::Backend se nenasadil, chybí:$missing (viz README)."
             echo "ready=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -58,7 +61,7 @@ jobs:
         if: steps.check.outputs.ready == 'true'
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
-          SCRIPT_ID: ${{ vars.SCRIPT_ID }}
+          SCRIPT_ID: ${{ vars.SCRIPT_ID || secrets.SCRIPT_ID }}
         run: |
           printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
           printf '{"scriptId":"%s","rootDir":"apps-script"}' "$SCRIPT_ID" > .clasp.json
