@@ -21,6 +21,8 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - **export pro Swiss-Manager** (.TXT a .xlsx) pro každý turnaj zvlášť, export všech přihlášek do Excelu,
 - souhrn doplňujících otázek (kolik lidí chce dopravu, ubytování…),
 - **kopie akce na další rok** (posune data i ročníky),
+- **import akce z propozic přes AI**: tlačítko „Importovat z propozic (AI)“ zkopíruje zadání pro ChatGPT / Clauda,
+  odpověď (JSON) se vloží zpět a akce se otevře vyplněná v editoru ke kontrole (formát a převod: `docs/js/import.js`),
 - **správci**: hlavní správce přidává pořadatele z dalších klubů, ti vidí jen své akce.
 
 ```

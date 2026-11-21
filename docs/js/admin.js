@@ -11,6 +11,7 @@
   const TOKEN_KEY = 'adminIdToken';
 
   let cfg = {};
+  let pendingImport = null; // akce načtená z importu, čeká na otevření v editoru
   let me = null;
   let playerDb = null;
 
@@ -209,13 +210,17 @@
     app.innerHTML = `
       <div class="page-head">
         <h1>Akce</h1>
-        <a class="button primary" href="#/akce/nova">+ Nová akce</a>
+        <div class="actions">
+          <button type="button" class="button" id="import-event">Importovat z propozic (AI)</button>
+          <a class="button primary" href="#/akce/nova">+ Nová akce</a>
+        </div>
       </div>
       ${data.events.length ? `<div class="card table-wrap"><table class="admin-table">
         <thead><tr><th>Akce</th><th>Termín</th><th>Stav</th><th>Přihlášek</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>`
         : '<div class="card"><p>Zatím tu nejsou žádné akce. Začněte tlačítkem „Nová akce“.</p></div>'}`;
 
+    $('#import-event').addEventListener('click', importDialog);
     $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copyEventDialog(data.events.find((e) => e.id === b.dataset.copy))));
     $$('[data-delete]').forEach((b) => b.addEventListener('click', async () => {
       const ev = data.events.find((e) => e.id === b.dataset.delete);
@@ -225,6 +230,52 @@
         viewEvents();
       } catch (e) { alert(e.message); }
     }));
+  }
+
+  function importDialog() {
+    const EI = window.EventImport;
+    openDialog(`<form class="dialog-form import-form" novalidate>
+      <h2>Import akce z propozic</h2>
+      <ol class="steps">
+        <li>Zkopírujte zadání a vložte ho do ChatGPT, Clauda nebo jiné AI. Přiložte propozice (PDF, nebo jejich text).
+          <p class="actions"><button type="button" class="button" id="copy-prompt">Zkopírovat zadání pro AI</button>
+          <span class="small muted" id="copy-state"></span></p>
+          <details><summary class="small">Zobrazit zadání</summary><textarea id="prompt-text" rows="8" readonly>${esc(EI.PROMPT)}</textarea></details>
+        </li>
+        <li>Odpověď AI (JSON) vložte sem:
+          <textarea name="json" rows="10" placeholder='{ "name": "…", "dateFrom": "…", "tournaments": [ … ] }' spellcheck="false"></textarea>
+        </li>
+        <li>Akce se otevře v editoru. <strong>Zkontrolujete údaje</strong> a teprve pak ji uložíte.</li>
+      </ol>
+      <div class="errors" hidden></div>
+      <p class="actions"><button class="primary">Načíst do editoru</button><button type="button" data-close>Zrušit</button></p>
+    </form>`, (d) => {
+      $('#copy-prompt', d).addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(EI.PROMPT);
+        } catch (e) {
+          const ta = $('#prompt-text', d);
+          ta.closest('details').open = true;
+          ta.select();
+          document.execCommand('copy');
+        }
+        $('#copy-state', d).textContent = 'Zkopírováno ✓';
+      });
+      $('form', d).addEventListener('submit', (e) => {
+        e.preventDefault();
+        const box = $('.errors', d);
+        try {
+          pendingImport = EI.parseImport(e.target.json.value);
+        } catch (err) {
+          box.textContent = err.message;
+          box.hidden = false;
+          return;
+        }
+        dialog.close();
+        if (location.hash === '#/akce/nova') route();
+        else location.hash = '#/akce/nova';
+      });
+    });
   }
 
   function copyEventDialog(ev) {
@@ -352,13 +403,24 @@
       admins: [],
     };
     if (id) ev = (await call('event', { id })).event;
+    let imported = null;
+    if (!id && pendingImport) {
+      imported = pendingImport;
+      ev = imported.event;
+      pendingImport = null;
+    }
     const isOwner = !id || me.role === 'superadmin' || ev.createdBy === me.email;
     const statusOpts = {};
     Object.keys(R.STATUS_LABELS).forEach((k) => { statusOpts[k] = R.STATUS_LABELS[k]; });
 
     app.innerHTML = `
       <p class="small"><a href="${id ? '#/akce/' + esc(id) : '#/'}">← Zpět</a></p>
-      <h1>${id ? 'Upravit akci' : 'Nová akce'}</h1>
+      <h1>${id ? 'Upravit akci' : imported ? 'Nová akce z importu' : 'Nová akce'}</h1>
+      ${imported ? `<div class="card import-note">
+        <strong>Údaje načtené z importu – před uložením je zkontrolujte</strong>, hlavně data, ročníky a limity ELO.
+        Akce se uloží jako rozpracovaná, veřejná bude až po otevření přihlašování.
+        ${imported.warnings.length ? `<ul>${imported.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
+      </div>` : ''}
       <form id="event-form" novalidate>
         <section class="card">
           <h2>Základní údaje</h2>
