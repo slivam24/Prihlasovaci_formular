@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>Změna přihlášky</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <p class="links small"><a href="./">← Všechny akce</a></p>
+      <h1 id="event-name">Změna přihlášky</h1>
+      <p id="event-meta" class="muted"></p>
+      <p id="app-meta" class="small muted"></p>
+    </header>
+
+    <p id="loading" class="muted">Načítám přihlášku…</p>
+    <div id="notice" class="card notice" hidden></div>
+    <div id="saved" class="card success" hidden></div>
+
+    <form id="form" novalidate hidden>
+      <section class="card">
+        <h2>Přihlášení hráči</h2>
+        <p class="muted small" id="entries-hint">Zaškrtněte, koho chcete odhlásit. Změna se uloží až tlačítkem dole.</p>
+        <div id="entries"></div>
+      </section>
+
+      <section class="card" id="extras-card" hidden>
+        <h2>Další údaje</h2>
+        <div id="extras"></div>
+      </section>
+
+      <div id="errors" class="errors" role="alert" hidden></div>
+      <p class="actions">
+        <button type="submit" class="primary" id="submit">Uložit změny</button>
+        <a class="button" id="list-link" href="./">Seznam přihlášených</a>
+      </p>
+    </form>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/picker.js"></script>
+  <script src="js/zmena.js"></script>
+</body>
+</html>

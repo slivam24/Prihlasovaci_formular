@@ -13,8 +13,10 @@ const root = path.join(__dirname, '..', 'docs');
 const gas = createGas({ owner: 'owner@example.cz', props: { SITE_URL: `http://localhost:${port}/` } });
 
 if (process.env.SEED !== '0') {
-  // ukázková akce, rovnou otevřená
-  gas.run(`ADMIN_ACTIONS.saveEvent({ event: Object.assign({}, SAMPLE_EVENT_, { status: 'otevreno', deadline: '' }) },
+  // ukázková akce, rovnou otevřená a s termínem za dva měsíce
+  const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  gas.run(`ADMIN_ACTIONS.saveEvent({ event: Object.assign({}, SAMPLE_EVENT_, {
+      status: 'otevreno', deadline: '', dateFrom: '${day(60)}', dateTo: '${day(61)}', contactEmail: 'poradatel@example.cz' }) },
     { email: 'owner@example.cz', role: 'superadmin' })`);
 }
 

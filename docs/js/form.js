@@ -483,6 +483,8 @@
       <h2>Přihláška byla odeslána ✓</h2>
       ${what}
       <p class="muted">Číslo přihlášky: <strong>${esc(res.id || '')}</strong>. Potvrzení jsme poslali na ${esc(payload.email)}.</p>
+      ${res.editToken ? `<p class="small">Odhlásit se nebo změnit ubytování a další údaje půjde přes odkaz v e-mailu, nebo
+        <a href="zmena.html?t=${encodeURIComponent(res.editToken)}">tady</a> (odkaz si můžete uložit).</p>` : ''}
       <p class="actions">
         <button type="button" class="primary" id="another">${payload.mode === 'team' ? 'Přihlásit další družstvo' : 'Přihlásit další hráče'}</button>
         <a class="button" href="seznam.html?akce=${encodeURIComponent(ev.slug)}">Seznam přihlášených</a>

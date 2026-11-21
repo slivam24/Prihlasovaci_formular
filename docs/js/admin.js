@@ -522,6 +522,7 @@
 
   let current = null; // { event, registrations }
   let showCancelled = false;
+  let showAllChanges = false;
 
   async function viewEvent(id) {
     loading('Načítám přihlášky…');
@@ -539,6 +540,25 @@
     }).filter(Boolean).join(' · ');
   }
 
+  function changesSection() {
+    const list = (current.changes || []).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    if (!list.length) return '';
+    const shown = showAllChanges ? list : list.slice(0, 15);
+    return `<section class="card" id="changes">
+      <div class="page-head"><h2>Změny přihlášek</h2><span class="muted small">${list.length} záznamů</span></div>
+      <div class="table-wrap"><table class="admin-table">
+        <thead><tr><th>Kdy</th><th>Kdo</th><th>Co</th><th>Podrobnosti</th><th>Přihláška</th></tr></thead>
+        <tbody>${shown.map((c) => `<tr>
+          <td class="small">${esc(c.at ? new Date(c.at).toLocaleString('cs-CZ') : '')}</td>
+          <td class="small">${esc(c.by)}</td>
+          <td><span class="badge ${c.action === 'odhláška' ? 'danger-badge' : ''}">${esc(c.action)}</span></td>
+          <td class="small">${esc(c.detail)}</td>
+          <td class="small">${esc(c.applicationId)}</td>
+        </tr>`).join('')}</tbody></table></div>
+      ${list.length > shown.length ? '<p><button type="button" class="link" id="all-changes">Zobrazit všechny změny</button></p>' : ''}
+    </section>`;
+  }
+
   function regRow(r, i) {
     const p = window.SM.regToPlayer(r);
     const cancelled = r.status === 'zrušeno';
@@ -546,7 +566,8 @@
       <td class="num">${r.board ? esc(r.board) : i + 1}.</td>
       <td><strong>${esc(p.surname)} ${esc(p.firstName)}</strong>${p.title ? ` <span class="badge">${esc(p.title)}</span>` : ''}
         ${p.registered ? '' : ' <span class="badge muted-badge" title="Hráč není v listině LOK">mimo LOK</span>'}
-        ${cancelled ? ' <span class="badge danger-badge">zrušeno</span>' : ''}</td>
+        ${cancelled ? ' <span class="badge danger-badge">zrušeno</span>' : ''}
+        ${cancelled && r.updatedAt ? `<div class="small muted">odhlášeno ${esc(new Date(r.updatedAt).toLocaleDateString('cs-CZ'))} · ${esc(r.updatedBy || '')}</div>` : ''}</td>
       <td class="num">${esc(p.year || '')}</td>
       <td>${esc(p.club)}</td>
       <td class="num">${p.rn || ''}</td>
@@ -642,7 +663,7 @@
 
       <div class="toolbar">
         <button type="button" class="button primary" id="add-reg">+ Přidat hráče</button>
-        <button type="button" class="button" id="export-all">Všechny přihlášky (.xlsx)</button>
+        <button type="button" class="button" id="export-all">Přihlášky, doplňky a změny (.xlsx)</button>
         <label class="check"><input type="checkbox" id="show-cancelled" ${showCancelled ? 'checked' : ''}> zobrazit zrušené</label>
       </div>
 
@@ -661,9 +682,12 @@
           ${tournamentTable(t)}
         </section>`;
       }).join('')}
-      ${extrasSummary()}`;
+      ${extrasSummary()}
+      ${changesSection()}`;
 
     $('#show-cancelled').addEventListener('change', (e) => { showCancelled = e.target.checked; renderEvent(); });
+    const allChanges = $('#all-changes');
+    if (allChanges) allChanges.addEventListener('click', () => { showAllChanges = true; renderEvent(); });
     $('#copy-link').addEventListener('click', () => {
       const url = new URL(publicUrl, location.href).toString();
       navigator.clipboard.writeText(url).then(() => { $('#copy-link').textContent = 'Zkopírováno ✓'; });
@@ -704,19 +728,47 @@
   async function exportAll() {
     const ev = current.event;
     const tName = (id) => { const t = ev.tournaments.find((x) => x.id === id); return t ? t.short || t.name : id; };
+    const extrasOf = (r) => { try { return JSON.parse(r.extras || '{}'); } catch (e) { return {}; } };
+    const extraVal = (d, x) => (Array.isArray(d[x.id]) ? d[x.id].join(', ') : d[x.id] || '');
+    const when = (s) => (s ? new Date(s).toLocaleString('cs-CZ') : '');
     const header = ['Turnaj', 'Příjmení', 'Jméno', 'Ročník', 'Klub', 'ELO ČR', 'FIDE', 'ID ČR', 'FIDE ID', 'V LOK',
-      'Družstvo', 'Šachovnice', 'Kapitán', 'E-mail', 'Přihlášeno', 'Č. přihlášky', 'Stav', 'Poznámka pořadatele']
+      'Družstvo', 'Šachovnice', 'Kapitán', 'E-mail', 'Přihlášeno', 'Č. přihlášky', 'Stav', 'Změněno', 'Změnil', 'Poznámka pořadatele']
       .concat((ev.extras || []).map((x) => x.label));
     const rows = current.registrations.map((r) => {
-      let d = {};
-      try { d = JSON.parse(r.extras || '{}'); } catch (e) { /* nic */ }
+      const d = extrasOf(r);
       return [tName(r.tournamentId), r.surname, r.firstName, r.year, r.club, r.rn, r.rf, r.idCr, r.fideId, r.inLok,
-        r.team, r.board, r.captain, r.email, r.createdAt ? new Date(r.createdAt).toLocaleString('cs-CZ') : '',
-        r.applicationId, r.status, r.orgNote]
-        .concat((ev.extras || []).map((x) => (Array.isArray(d[x.id]) ? d[x.id].join(', ') : d[x.id] || '')));
+        r.team, r.board, r.captain, r.email, when(r.createdAt), r.applicationId, r.status, when(r.updatedAt), r.updatedBy, r.orgNote]
+        .concat((ev.extras || []).map((x) => extraVal(d, x)));
     });
+
+    // osoby a doplňky: jeden řádek na hráče v přihlášce (aktuální stav ubytování, obědů…)
+    const persons = {};
+    current.registrations.forEach((r) => {
+      const key = `${r.applicationId}|${R.norm(r.surname + ' ' + r.firstName)}|${r.year}`;
+      const p = persons[key] || (persons[key] = { r, active: [], cancelled: [], last: '', lastBy: '' });
+      (r.status === 'zrušeno' ? p.cancelled : p.active).push(tName(r.tournamentId));
+      if (String(r.updatedAt || '') > p.last) { p.last = String(r.updatedAt); p.lastBy = r.updatedBy; }
+    });
+    const pHeader = ['Příjmení', 'Jméno', 'Ročník', 'Klub', 'E-mail', 'Č. přihlášky', 'Stav', 'Přihlášen do', 'Odhlášen z']
+      .concat((ev.extras || []).map((x) => x.label), ['Poslední změna', 'Změnil']);
+    const pRows = Object.keys(persons).map((k) => persons[k])
+      .sort((a, b) => (a.active.length ? 0 : 1) - (b.active.length ? 0 : 1) || `${a.r.surname} ${a.r.firstName}`.localeCompare(`${b.r.surname} ${b.r.firstName}`, 'cs'))
+      .map((p) => {
+        const d = extrasOf(p.r);
+        return [p.r.surname, p.r.firstName, p.r.year, p.r.club, p.r.email, p.r.applicationId,
+          p.active.length ? 'přihlášen' : 'odhlášen', p.active.join(', '), p.cancelled.join(', ')]
+          .concat((ev.extras || []).map((x) => (p.active.length ? extraVal(d, x) : '')), [when(p.last), p.lastBy || '']);
+      });
+
+    const cHeader = ['Kdy', 'Kdo', 'Co', 'Podrobnosti', 'Č. přihlášky'];
+    const cRows = (current.changes || []).slice().sort((a, b) => String(a.at).localeCompare(String(b.at)))
+      .map((c) => [when(c.at), c.by, c.action, c.detail, c.applicationId]);
     try {
-      await downloadXlsx(`${fileSafe(ev.slug)}_prihlasky.xlsx`, [{ name: 'Přihlášky', rows: [header].concat(rows) }]);
+      await downloadXlsx(`${fileSafe(ev.slug)}_prihlasky.xlsx`, [
+        { name: 'Přihlášky', rows: [header].concat(rows) },
+        { name: 'Osoby a doplňky', rows: [pHeader].concat(pRows) },
+        { name: 'Změny', rows: [cHeader].concat(cRows) },
+      ]);
     } catch (e) { alert(e.message); }
   }
 
@@ -727,6 +779,7 @@
     try {
       const res = await call('updateRegistration', { id, changes: { status: cancel ? 'zrušeno' : '' } });
       Object.assign(r, res.registration);
+      if (res.changes) current.changes = res.changes;
       recount();
       renderEvent();
     } catch (e) { alert(e.message); }
@@ -759,10 +812,19 @@
         <label>Turnaj<select name="tournamentId">${sameType.map((x) => `<option value="${esc(x.id)}"${x.id === r.tournamentId ? ' selected' : ''}>${esc(x.short || x.name)}</option>`).join('')}</select></label>
         ${t.type === 'team' ? field('team', 'Družstvo', r.team) + field('board', 'Šachovnice', r.board, 'number') + field('captain', 'Kapitán', r.captain) : ''}
         <label class="wide">Poznámka pořadatele<textarea name="orgNote" rows="2">${esc(r.orgNote || '')}</textarea></label>
+        ${r.editToken ? `<div class="wide small">Odkaz pro změny (pro hráče):
+          <button type="button" class="link" id="copy-edit-link">zkopírovat</button></div>` : ''}
       </div>
       <div class="errors" hidden></div>
       <p class="actions"><button class="primary">Uložit</button><button type="button" data-close>Zrušit</button></p>
     </form>`, (d) => {
+      const copyLink = $('#copy-edit-link', d);
+      if (copyLink) {
+        copyLink.addEventListener('click', () => {
+          const url = new URL('zmena.html?t=' + r.editToken, location.href).toString();
+          navigator.clipboard.writeText(url).then(() => { copyLink.textContent = 'zkopírováno ✓'; }, () => prompt('Odkaz pro změny:', url));
+        });
+      }
       $('form', d).addEventListener('submit', async (e) => {
         e.preventDefault();
         const changes = {};
@@ -770,6 +832,7 @@
         try {
           const res = await call('updateRegistration', { id, changes });
           Object.assign(r, res.registration);
+          if (res.changes) current.changes = res.changes;
           recount();
           dialog.close();
           renderEvent();

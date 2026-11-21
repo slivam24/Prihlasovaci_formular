@@ -29,7 +29,11 @@ const SHEETS = {
     name: 'Přihlášky',
     cols: ['id', 'applicationId', 'eventId', 'tournamentId', 'createdAt', 'email', 'mode',
       'surname', 'firstName', 'year', 'sex', 'title', 'idCr', 'fideId', 'rn', 'rf', 'fed', 'clubNo', 'club', 'sk',
-      'inLok', 'team', 'board', 'captain', 'extras', 'status', 'orgNote', 'updatedAt', 'updatedBy'],
+      'inLok', 'team', 'board', 'captain', 'extras', 'status', 'orgNote', 'updatedAt', 'updatedBy', 'editToken'],
+  },
+  changes: {
+    name: 'Změny',
+    cols: ['id', 'at', 'eventId', 'applicationId', 'registrationId', 'by', 'action', 'detail'],
   },
   users: {
     name: 'Správci',
@@ -56,6 +60,10 @@ function doGet(e) {
     if (p.action === 'events') return { events: listPublicEvents_() };
     if (p.action === 'event') return { event: publicEvent_(loadEventBySlug_(p.slug, true)) };
     if (p.action === 'list') return publicList_(loadEventBySlug_(p.slug, true));
+    if (p.action === 'application') {
+      const app = findApplication_(p.token);
+      return applicationView_(app.ev, app.rows, new Date());
+    }
     return { message: 'API přihlášek běží.' };
   });
 }
@@ -70,6 +78,7 @@ function doPost(e) {
   return respond_(() => {
     const action = String(body.action || '');
     if (action === 'register') return withLock_(() => register_(body, null));
+    if (action === 'updateApplication') return withLock_(() => updateApplication_(body));
     if (action.indexOf('admin.') === 0) {
       const user = authenticate_(body.idToken);
       const handler = ADMIN_ACTIONS[action.slice(6)];
@@ -364,6 +373,11 @@ function register_(body, adminUser) {
     { admin: !!adminUser, adminEmail: adminUser ? adminUser.email : '' });
   if (!result.ok) throw userError_(result.error);
   insert_('registrations', result.rows);
+  if (adminUser) {
+    logChanges_(ev, result.applicationId, result.rows.map((r) => ({
+      registrationId: r.id, action: 'přidáno pořadatelem', detail: `${r.surname} ${r.firstName} – ${tourShortById_(ev, r.tournamentId)}`,
+    })), adminUser.email, new Date());
+  }
   SpreadsheetApp.flush();
   const email = String(body.email || '').trim();
   if (!adminUser && email) {
@@ -373,7 +387,7 @@ function register_(body, adminUser) {
       console.error('Potvrzovací e-mail se nepodařilo odeslat', err);
     }
   }
-  return { id: result.applicationId };
+  return { id: result.applicationId, editToken: result.editToken };
 }
 
 /**
@@ -397,9 +411,10 @@ function processRegistration_(data, ev, existing, now, opts) {
   const extras = cleanExtras_(ev.extras, data.extras || {}, mode);
   const active = existing.filter((r) => r.status !== CANCELLED);
   const applicationId = makeId_(now);
+  const editToken = opts.editToken || makeToken_();
   const base = {
     applicationId, eventId: ev.id, createdAt: now.toISOString(), email, mode,
-    extras: JSON.stringify(extras), status: '', orgNote: '',
+    extras: JSON.stringify(extras), status: '', orgNote: '', editToken,
     updatedBy: admin ? opts.adminEmail || 'pořadatel' : '',
   };
   const row = (p, t, more) => Object.assign({ id: makeId_(now, 8) }, base, playerToRow_(p), { tournamentId: t.id }, more || {});
@@ -437,7 +452,7 @@ function processRegistration_(data, ev, existing, now, opts) {
       done.push({ p, tours });
     }
     return {
-      ok: true, applicationId, rows,
+      ok: true, applicationId, editToken, rows,
       summary: {
         entries: done.map((d) => ({ name: fullName_(d.p), tournaments: d.tours.map(tourTitle_) })),
         extras,
@@ -481,7 +496,7 @@ function processRegistration_(data, ev, existing, now, opts) {
     if (clash) return fail(`${fullName_(p)} už hraje za družstvo „${clash.team}“.`);
   }
   return {
-    ok: true, applicationId,
+    ok: true, applicationId, editToken,
     rows: players.map(({ p, board }) => row(p, t, { team: teamName, board, captain })),
     summary: {
       team: teamName, captain,
@@ -638,6 +653,8 @@ function sendConfirmation_(ev, email, result) {
     if (text) lines.push(`${x.label}: ${text}`);
   });
   lines.push('', `Číslo přihlášky: ${result.applicationId}`);
+  const editUrl = editUrl_(result.editToken);
+  if (editUrl) lines.push('', 'Odhlášení nebo změna ubytování a dalších údajů:', editUrl);
   const site = PropertiesService.getScriptProperties().getProperty('SITE_URL');
   if (site) lines.push(`Seznam přihlášených: ${site.replace(/\/$/, '')}/seznam.html?akce=${ev.slug}`);
   if (ev.infoUrl) lines.push(`Informace: ${ev.infoUrl}`);
@@ -645,6 +662,232 @@ function sendConfirmation_(ev, email, result) {
   const opts = { to: email, subject: `Přihláška – ${ev.name}`, body: lines.join('\n'), name: ev.name };
   if (ev.contactEmail) opts.replyTo = ev.contactEmail;
   MailApp.sendEmail(opts);
+}
+
+// =====================================================================
+// Změna přihlášky přes odkaz z e-mailu + záznam změn
+// =====================================================================
+
+function editUrl_(token) {
+  const site = PropertiesService.getScriptProperties().getProperty('SITE_URL');
+  return site && token ? `${site.replace(/\/$/, '')}/zmena.html?t=${token}` : '';
+}
+
+function makeToken_() {
+  if (typeof Utilities !== 'undefined' && Utilities.getUuid) {
+    return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 40);
+  }
+  let s = '';
+  while (s.length < 40) s += Math.random().toString(36).slice(2);
+  return s.slice(0, 40);
+}
+
+function tourShortById_(ev, id) {
+  const t = ev.tournaments.find((x) => x.id === id);
+  return t ? t.short || t.name : '(smazaný turnaj)';
+}
+
+/** Online změny jdou do dne před začátkem akce. */
+function canSelfEdit_(ev, now) {
+  if (ev.status === 'archiv' || ev.status === 'koncept') return false;
+  const start = new Date((ev.dateFrom || '2100-01-01') + 'T00:00:00');
+  return isNaN(start.getTime()) || now < start;
+}
+
+function findApplication_(token) {
+  const t = String(token || '').trim();
+  if (t.length < 20) throw userError_('Neplatný odkaz na přihlášku.', 'not_found');
+  const rows = table_('registrations').rows.filter((r) => r.editToken === t);
+  if (!rows.length) throw userError_('Přihláška nebyla nalezena – odkaz je neplatný, nebo byla přihláška smazána.', 'not_found');
+  return { ev: loadEventById_(rows[0].eventId), rows };
+}
+
+function applicationExtras_(rows) {
+  const active = rows.find((r) => r.status !== CANCELLED) || rows[0];
+  return parseJson_(active.extras, {});
+}
+
+/** Co uvidí přihlášený na stránce změn (bez interních poznámek pořadatele). */
+function applicationView_(ev, rows, now) {
+  const first = rows[0];
+  const event = publicEvent_(ev);
+  event.contactEmail = ev.contactEmail;
+  return {
+    event,
+    application: {
+      id: first.applicationId,
+      email: first.email,
+      mode: first.mode === 'team' ? 'team' : 'individual',
+      createdAt: first.createdAt,
+      team: first.team || '',
+      captain: first.captain || '',
+      extras: applicationExtras_(rows),
+      entries: rows.map((r) => ({
+        id: r.id,
+        name: fullName_(rowToPlayer_(r)),
+        year: toInt_(r.year),
+        club: String(r.club || ''),
+        tournamentId: r.tournamentId,
+        tournament: tourShortById_(ev, r.tournamentId),
+        board: toInt_(r.board) || null,
+        cancelled: r.status === CANCELLED,
+      })),
+    },
+    canEdit: canSelfEdit_(ev, now),
+    canRestore: canSelfEdit_(ev, now) && !isClosed_(ev, now),
+  };
+}
+
+function extraText_(v) {
+  const t = Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
+  return t || '—';
+}
+
+/**
+ * Změny z odkazu: odhlášení, vrácení odhlášení, doplňující údaje.
+ * Čistá funkce – mění předané řádky a vrací { ok, rows (změněné), logs, lines } nebo { ok: false, error }.
+ */
+function applyApplicationChanges_(ev, appRows, eventRows, changes, now) {
+  const fail = (error) => ({ ok: false, error });
+  if (!canSelfEdit_(ev, now)) {
+    return fail('Změny už nejde provést online.' + (ev.contactEmail ? ` Kontaktujte prosím pořadatele: ${ev.contactEmail}.` : ' Kontaktujte prosím pořadatele.'));
+  }
+  const byId = {};
+  appRows.forEach((r) => { byId[r.id] = r; });
+  const list = (v) => (Array.isArray(v) ? v.map(String) : []);
+  const cancel = list(changes.cancel);
+  const restore = list(changes.restore);
+  if (cancel.concat(restore).some((id) => !byId[id])) return fail('Neplatná položka přihlášky.');
+
+  const touched = [];
+  const touch = (r) => { if (touched.indexOf(r) < 0) touched.push(r); };
+  const logs = [];
+  const lines = [];
+  const label = (r) => `${fullName_(rowToPlayer_(r))} – ${tourShortById_(ev, r.tournamentId)}`;
+
+  cancel.forEach((id) => {
+    const r = byId[id];
+    if (r.status === CANCELLED) return;
+    r.status = CANCELLED;
+    touch(r);
+    logs.push({ registrationId: r.id, action: 'odhláška', detail: label(r) });
+    lines.push('Odhlášeno: ' + label(r));
+  });
+
+  const toRestore = restore.map((id) => byId[id]).filter((r) => r.status === CANCELLED);
+  if (toRestore.length) {
+    if (isClosed_(ev, now)) return fail('Přihlašování je uzavřené, odhlášení už nejde vrátit. Kontaktujte prosím pořadatele.');
+    for (const r of toRestore) {
+      const t = ev.tournaments.find((x) => x.id === r.tournamentId);
+      if (!t) return fail('Turnaj už neexistuje.');
+      const others = eventRows.filter((x) => x !== r && x.tournamentId === t.id && x.status !== CANCELLED);
+      if (t.type !== 'team' && others.some((x) => samePlayer_(rowToPlayer_(x), rowToPlayer_(r)))) {
+        return fail(`${fullName_(rowToPlayer_(r))} je do turnaje „${t.short || t.name}“ už přihlášen(a) jinou přihláškou.`);
+      }
+      if (t.capacity) {
+        const taken = t.type === 'team' ? uniq_(others.map((x) => norm_(x.team))) : others;
+        const teamBack = t.type === 'team' && taken.indexOf(norm_(r.team)) >= 0;
+        if (!teamBack && taken.length >= t.capacity) return fail(`Turnaj „${t.short || t.name}“ je už naplněný.`);
+      }
+      r.status = '';
+      touch(r);
+      logs.push({ registrationId: r.id, action: 'obnovení', detail: label(r) });
+      lines.push('Znovu přihlášeno: ' + label(r));
+    }
+  }
+
+  if (changes.extras && typeof changes.extras === 'object') {
+    const mode = appRows[0].mode === 'team' ? 'team' : 'individual';
+    const oldEx = applicationExtras_(appRows);
+    const newEx = cleanExtras_(ev.extras, changes.extras, mode);
+    const diffs = (ev.extras || [])
+      .filter((x) => (x.modes || TOURNAMENT_TYPES).indexOf(mode) >= 0)
+      .filter((x) => extraText_(oldEx[x.id]) !== extraText_(newEx[x.id]))
+      .map((x) => `${x.label}: ${extraText_(oldEx[x.id])} → ${extraText_(newEx[x.id])}`);
+    if (diffs.length) {
+      appRows.forEach((r) => { r.extras = JSON.stringify(newEx); touch(r); });
+      logs.push({ registrationId: '', action: 'změna údajů', detail: diffs.join('; ') });
+      diffs.forEach((d) => lines.push(d));
+    }
+  }
+
+  if (!logs.length) return fail('Nebyla provedena žádná změna.');
+  touched.forEach((r) => { r.updatedAt = now.toISOString(); r.updatedBy = 'přihlášený (odkaz z e-mailu)'; });
+  return { ok: true, rows: touched, logs, lines };
+}
+
+function updateApplication_(body) {
+  const app = findApplication_(body.token);
+  const ev = app.ev;
+  const now = new Date();
+  const eventRows = table_('registrations').rows.filter((r) => r.eventId === ev.id);
+  const res = applyApplicationChanges_(ev, app.rows, eventRows, body.changes || {}, now);
+  if (!res.ok) throw userError_(res.error);
+  res.rows.forEach((r) => update_('registrations', r));
+  logChanges_(ev, app.rows[0].applicationId, res.logs, 'přihlášený (odkaz z e-mailu)', now);
+  SpreadsheetApp.flush();
+  try {
+    sendChangeEmails_(ev, app.rows, res.lines);
+  } catch (err) {
+    console.error('E-mail o změně se nepodařilo odeslat', err);
+  }
+  return Object.assign(applicationView_(ev, app.rows, now), { saved: res.lines });
+}
+
+function sendChangeEmails_(ev, rows, lines) {
+  const first = rows[0];
+  const active = rows.filter((r) => r.status !== CANCELLED);
+  const state = active.length
+    ? active.map((r) => `  • ${fullName_(rowToPlayer_(r))} – ${tourShortById_(ev, r.tournamentId)}`)
+    : ['  (všichni hráči jsou odhlášeni)'];
+  const url = editUrl_(first.editToken);
+  if (first.email) {
+    const body = ['Dobrý den,', '', `ve vaší přihlášce na akci ${ev.name} byly provedeny tyto změny:`, '']
+      .concat(lines.map((l) => '  ' + l), ['', 'Aktuálně přihlášení:'], state,
+        ['', `Číslo přihlášky: ${first.applicationId}`], url ? ['', 'Další změny:', url] : []).join('\n');
+    const opts = { to: first.email, subject: `Změna přihlášky – ${ev.name}`, body, name: ev.name };
+    if (ev.contactEmail) opts.replyTo = ev.contactEmail;
+    MailApp.sendEmail(opts);
+  }
+  if (ev.contactEmail) {
+    const body = [`Přihláška č. ${first.applicationId} (${first.email || 'bez e-mailu'}) byla změněna přes odkaz z e-mailu:`, '']
+      .concat(lines.map((l) => '  ' + l), ['', 'Aktuálně přihlášení:'], state).join('\n');
+    MailApp.sendEmail({ to: ev.contactEmail, subject: `Změna přihlášky č. ${first.applicationId} – ${ev.name}`, body, name: 'Přihlášky' });
+  }
+}
+
+const FIELD_LABELS_ = {
+  surname: 'Příjmení', firstName: 'Jméno', year: 'Ročník', club: 'Klub', rn: 'ELO ČR', rf: 'FIDE', idCr: 'ID ČR',
+  fideId: 'FIDE ID', email: 'E-mail', team: 'Družstvo', board: 'Šachovnice', captain: 'Kapitán', orgNote: 'Poznámka pořadatele',
+};
+
+/** Záznamy změn po úpravě řádku pořadatelem. */
+function registrationDiff_(ev, before, after) {
+  const name = `${after.surname} ${after.firstName}`;
+  const logs = [];
+  if (before.status !== after.status) {
+    logs.push({
+      registrationId: after.id,
+      action: after.status === CANCELLED ? 'odhláška' : 'obnovení',
+      detail: `${name} – ${tourShortById_(ev, after.tournamentId)}`,
+    });
+  }
+  const diffs = Object.keys(FIELD_LABELS_)
+    .filter((k) => String(before[k] == null ? '' : before[k]) !== String(after[k] == null ? '' : after[k]))
+    .map((k) => `${FIELD_LABELS_[k]}: ${before[k] === '' || before[k] == null ? '—' : before[k]} → ${after[k] === '' || after[k] == null ? '—' : after[k]}`);
+  if (before.tournamentId !== after.tournamentId) {
+    diffs.push(`Turnaj: ${tourShortById_(ev, before.tournamentId)} → ${tourShortById_(ev, after.tournamentId)}`);
+  }
+  if (diffs.length) logs.push({ registrationId: after.id, action: 'úprava', detail: `${name}: ${diffs.join('; ')}` });
+  return logs;
+}
+
+function logChanges_(ev, applicationId, logs, by, now) {
+  if (!logs.length) return;
+  insert_('changes', logs.map((l) => ({
+    id: makeId_(now, 8), at: now.toISOString(), eventId: ev.id, applicationId,
+    registrationId: l.registrationId || '', by, action: l.action, detail: clean_(l.detail, 2000),
+  })));
 }
 
 // =====================================================================
@@ -718,7 +961,8 @@ const ADMIN_ACTIONS = {
     const ev = loadEventById_(body.id);
     assertCanEdit_(user, ev);
     const regs = table_('registrations').rows.filter((r) => r.eventId === ev.id);
-    return { event: adminEventView_(ev, regs), registrations: regs.map(stripRow_) };
+    const changes = table_('changes').rows.filter((c) => c.eventId === ev.id).map(stripRow_);
+    return { event: adminEventView_(ev, regs), registrations: regs.map(stripRow_), changes };
   },
 
   saveEvent(body, user) {
@@ -821,6 +1065,7 @@ const ADMIN_ACTIONS = {
       assertCanEdit_(user, loadEventById_(row.eventId));
       const ch = body.changes || {};
       const ev = loadEventById_(row.eventId);
+      const before = Object.assign({}, row);
       if ('status' in ch) row.status = ch.status === CANCELLED ? CANCELLED : '';
       if ('orgNote' in ch) row.orgNote = clean_(ch.orgNote, 1000);
       ['surname', 'firstName', 'club', 'email', 'team', 'captain'].forEach((k) => {
@@ -835,10 +1080,14 @@ const ADMIN_ACTIONS = {
         row.tournamentId = t.id;
       }
       if (!row.surname || !row.firstName) throw userError_('Jméno a příjmení nesmí být prázdné.');
-      row.updatedAt = new Date().toISOString();
+      const now = new Date();
+      const logs = registrationDiff_(ev, before, row);
+      if (!logs.length) return { registration: stripRow_(row) };
+      row.updatedAt = now.toISOString();
       row.updatedBy = user.email;
       update_('registrations', row);
-      return { registration: stripRow_(row) };
+      logChanges_(ev, row.applicationId, logs, user.email, now);
+      return { registration: stripRow_(row), changes: table_('changes').rows.filter((c) => c.eventId === ev.id).map(stripRow_) };
     });
   },
 

@@ -83,6 +83,7 @@ function createGas(opts) {
       computeDigest: (alg, s) => Array.from(crypto.createHash('sha256').update(String(s)).digest()),
       base64EncodeWebSafe: (bytes) => Buffer.from(bytes.map((b) => b & 255)).toString('base64url'),
       DigestAlgorithm: { SHA_256: 'sha256' },
+      getUuid: () => crypto.randomUUID(),
     },
     CacheService: {
       getScriptCache: () => ({ get: (k) => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; } }),
