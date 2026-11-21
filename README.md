@@ -20,6 +20,10 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - přihlášky: zrušení / obnovení, úprava, poznámka pořadatele, ruční přidání hráče,
 - **export pro Swiss-Manager** (.TXT a .xlsx) pro každý turnaj zvlášť, export všech přihlášek do Excelu,
 - souhrn doplňujících otázek (kolik lidí chce dopravu, ubytování…),
+- **družstva**: víc družstev v jedné přihlášce, soupiska se řadí šipkami (pořadí = šachovnice, pak náhradníci),
+  hráče lze přidat filtrem „Vybrat hráče z listiny“ a přesouvat mezi družstvy; soupisku lze doplnit později
+  přes odkaz z e-mailu, pořadatel ji upraví kdykoli („Upravit soupisku“ v detailu akce),
+- **obědy a ubytování s cenou**: typ otázky „počet kusů s cenou“ a předvolby v editoru akce, součty v souhrnu a exportu,
 - **změny přihlášek odkazem z e-mailu** (`zmena.html?t=…`): odhláška hráčů z turnajů, vrácení odhlášky,
   změna ubytování/obědů/dopravy – do dne před začátkem akce; e-mail o změně přihlášenému i pořadateli (kontaktní e-mail akce),
 - **záznam všech změn** (list „Změny“) a export „Přihlášky, doplňky a změny“ (listy Přihlášky, Osoby a doplňky, Změny),

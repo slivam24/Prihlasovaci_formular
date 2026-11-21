@@ -49,6 +49,7 @@ const CHOICE_TYPES = ['checkboxes', 'select', 'quantity'];
 const ROLES = ['superadmin', 'organizer'];
 const CANCELLED = 'zrušeno';
 const MAX_GROUP_PLAYERS = 60;
+const MAX_GROUP_TEAMS = 20;
 const YES = 'ANO';
 
 // =====================================================================
@@ -83,7 +84,7 @@ function doPost(e) {
   return respond_(() => {
     const action = String(body.action || '');
     if (action === 'register') return withLock_(() => register_(body, null));
-    if (action === 'updateApplication') return withLock_(() => updateApplication_(body));
+    if (action === 'updateApplication') return withLock_(() => updateApplication_(body, null));
     if (action.indexOf('admin.') === 0) {
       const user = authenticate_(body.idToken);
       const handler = ADMIN_ACTIONS[action.slice(6)];
@@ -495,50 +496,81 @@ function processRegistration_(data, ev, existing, now, opts) {
     };
   }
 
-  // ---- družstvo ----
-  const team = data.team || {};
-  const t = ev.tournaments.find((x) => x.type === 'team' && x.id === String(team.tournamentId));
-  if (!t) return fail('Vyberte soutěž družstev.');
-  const teamName = clean_(team.name, 100);
-  const captain = clean_(team.captain, 100);
-  if (!teamName) return fail('Vyplňte název družstva.');
-  if (!captain) return fail('Vyplňte kapitána / vedoucího družstva.');
+  // ---- družstva: jedno i více v jedné přihlášce, soupiska může přijít později ----
+  const teamsIn = Array.isArray(data.teams) ? data.teams : [data.team || {}];
+  if (!teamsIn.length) return fail('Přidejte alespoň jedno družstvo.');
+  if (teamsIn.length > MAX_GROUP_TEAMS) return fail(`Najednou lze přihlásit nejvýše ${MAX_GROUP_TEAMS} družstev.`);
+  const rows = [];
+  const done = [];
+  for (let k = 0; k < teamsIn.length; k++) {
+    const team = teamsIn[k] || {};
+    const prefix = teamsIn.length > 1 ? `${k + 1}. družstvo: ` : '';
+    const t = ev.tournaments.find((x) => x.type === 'team' && x.id === String(team.tournamentId));
+    if (!t) return fail(prefix + 'Vyberte soutěž družstev.');
+    const teamName = clean_(team.name, 100);
+    const captain = clean_(team.captain, 100);
+    if (!teamName) return fail(prefix + 'Vyplňte název družstva.');
+    if (!captain) return fail(prefix + 'Vyplňte kapitána / vedoucího družstva.');
+    const roster = cleanRoster_(t, team.players, year, { admin, requireFull: !team.rosterLater, label: teamName });
+    if (roster.error) return fail(prefix + roster.error);
 
-  const boards = t.boards || 4;
-  const reserves = t.reserves || 0;
-  const raw = Array.isArray(team.players) ? team.players : [];
-  const players = [];
-  for (let i = 0; i < boards + reserves; i++) {
-    const label = i < boards ? `${i + 1}. šachovnice` : 'Náhradník';
-    if (!raw[i]) {
-      if (i < boards) return fail(`${label}: vyberte hráče.`);
-      continue;
+    const inTour = active.filter((r) => r.tournamentId === t.id);
+    const taken = uniq_(inTour.map((r) => norm_(r.team)).concat(done.filter((d) => d.t.id === t.id).map((d) => norm_(d.name))));
+    if (taken.indexOf(norm_(teamName)) >= 0) return fail(`Družstvo „${teamName}“ už je přihlášeno.`);
+    if (t.capacity && taken.length >= t.capacity && !admin) return fail(`Soutěž „${t.short || t.name}“ je již naplněna.`);
+    for (const p of roster.players) {
+      const clash = inTour.find((r) => !isTeamRow_(r) && samePlayer_(rowToPlayer_(r), p));
+      if (clash) return fail(`${fullName_(p)} už hraje za družstvo „${clash.team}“.`);
+      const other = done.find((d) => d.t.id === t.id && d.players.some((q) => samePlayer_(q, p)));
+      if (other) return fail(`${fullName_(p)} je uveden(a) ve dvou družstvech („${other.name}“ a „${teamName}“).`);
     }
-    const p = cleanPlayer_(raw[i], year);
-    if (p.error) return fail(`${label}: ${p.error}`);
-    const block = eligibility_(t, p);
-    if (block && !admin) return fail(`${fullName_(p)}: soutěž je ${block}.`);
-    if (players.some((q) => samePlayer_(q.p, p))) return fail(`${fullName_(p)} je v družstvu uveden dvakrát.`);
-    players.push({ p, board: i + 1 });
-  }
-
-  const inTour = active.filter((r) => r.tournamentId === t.id);
-  const teamNames = uniq_(inTour.map((r) => norm_(r.team)));
-  if (teamNames.indexOf(norm_(teamName)) >= 0) return fail(`Družstvo „${teamName}“ už je přihlášeno.`);
-  if (t.capacity && teamNames.length >= t.capacity && !admin) return fail(`Soutěž „${t.short || t.name}“ je již naplněna.`);
-  for (const { p } of players) {
-    const clash = inTour.find((r) => samePlayer_(rowToPlayer_(r), p));
-    if (clash) return fail(`${fullName_(p)} už hraje za družstvo „${clash.team}“.`);
+    rows.push(Object.assign({ id: makeId_(now, 8) }, base, EMPTY_PLAYER_ROW_, { tournamentId: t.id, team: teamName, board: 0, captain }));
+    roster.players.forEach((p, i) => rows.push(row(p, t, { team: teamName, board: i + 1, captain })));
+    done.push({ t, name: teamName, captain, players: roster.players });
   }
   return {
-    ok: true, applicationId, editToken,
-    rows: players.map(({ p, board }) => row(p, t, { team: teamName, board, captain })),
+    ok: true, applicationId, editToken, rows,
     summary: {
-      team: teamName, captain,
-      players: players.map(({ p, board }) => `${board > boards ? 'N' : board}. ${fullName_(p)}`),
-      tournaments: [tourTitle_(t)], extras,
+      teams: done.map((d) => ({
+        name: d.name, captain: d.captain, tournament: tourTitle_(d.t),
+        players: d.players.map((p, i) => `${i + 1 > (d.t.boards || 4) ? 'N' : i + 1}. ${fullName_(p)}`),
+      })),
+      extras,
     },
   };
+}
+
+// Řádek „družstvo“ (bez hráče) – družstvo existuje i bez soupisky.
+const EMPTY_PLAYER_ROW_ = {
+  surname: '', firstName: '', year: '', sex: '', title: '', idCr: '', fideId: '', rn: '', rf: '',
+  fed: '', clubNo: '', club: '', sk: '', inLok: '',
+};
+
+function isTeamRow_(r) {
+  return r.mode === 'team' && !r.surname;
+}
+
+/** Soupiska: seřazení hráči (prvních „boards“ = šachovnice, zbytek náhradníci). */
+function cleanRoster_(t, raw, year, opts) {
+  const boards = t.boards || 4;
+  const max = boards + (t.reserves || 0);
+  const list = (Array.isArray(raw) ? raw : []).filter(Boolean);
+  if (list.length > max) {
+    return { error: `Soupiska může mít nejvýše ${max} hráčů (${boards} šachovnic + ${t.reserves || 0} náhradníků).` };
+  }
+  if (opts.requireFull && list.length < boards) {
+    return { error: `${opts.label ? `Družstvo „${opts.label}“: ` : ''}vyplňte soupisku aspoň na ${boards} šachovnice, nebo zaškrtněte „soupisku doplním později“.` };
+  }
+  const players = [];
+  for (let i = 0; i < list.length; i++) {
+    const p = cleanPlayer_(list[i], year);
+    if (p.error) return { error: `${i + 1}. hráč soupisky: ${p.error}` };
+    const block = eligibility_(t, p);
+    if (block && !opts.admin) return { error: `${fullName_(p)}: soutěž je ${block}.` };
+    if (players.some((q) => samePlayer_(q, p))) return { error: `${fullName_(p)} je na soupisce dvakrát.` };
+    players.push(p);
+  }
+  return { players };
 }
 
 function cleanPlayer_(raw, maxYear) {
@@ -660,7 +692,7 @@ function buildPublicList_(ev, regs) {
       const byTeam = {};
       sel.forEach((r) => {
         if (!byTeam[r.team]) byTeam[r.team] = { team: r.team, captain: r.captain, players: [] };
-        byTeam[r.team].players.push(pub(r));
+        if (!isTeamRow_(r)) byTeam[r.team].players.push(pub(r));
       });
       out.teams[t.id] = Object.keys(byTeam).map((k) => {
         byTeam[k].players.sort((a, b) => a.board - b.board);
@@ -676,11 +708,13 @@ function buildPublicList_(ev, regs) {
 function sendConfirmation_(ev, email, result) {
   const s = result.summary;
   const lines = ['Dobrý den,', '', `potvrzujeme přijetí přihlášky na akci ${ev.name}.`, ''];
-  if (s.team) {
-    lines.push(`Družstvo: ${s.team} (kapitán: ${s.captain})`);
-    s.players.forEach((p) => lines.push('  ' + p));
-    lines.push('', 'Soutěž:');
-    s.tournaments.forEach((t) => lines.push('  • ' + t));
+  if (s.teams) {
+    lines.push(s.teams.length > 1 ? `Přihlášená družstva (${s.teams.length}):` : 'Přihlášené družstvo:');
+    s.teams.forEach((t) => {
+      lines.push('', `  ${t.name} – ${t.tournament} (kapitán: ${t.captain})`);
+      if (t.players.length) t.players.forEach((p) => lines.push('    ' + p));
+      else lines.push('    soupiska bude doplněna později (přes odkaz níže)');
+    });
   } else {
     lines.push(s.entries.length > 1 ? `Přihlášení hráči (${s.entries.length}):` : 'Přihlášený hráč:');
     s.entries.forEach((e) => {
@@ -760,7 +794,8 @@ function applicationView_(ev, rows, now) {
       team: first.team || '',
       captain: first.captain || '',
       extras: applicationExtras_(rows),
-      entries: rows.map((r) => ({
+      teams: first.mode === 'team' ? groupTeams_(ev, rows) : [],
+      entries: rows.filter((r) => !isTeamRow_(r)).map((r) => ({
         id: r.id,
         name: fullName_(rowToPlayer_(r)),
         year: toInt_(r.year),
@@ -774,6 +809,38 @@ function applicationView_(ev, rows, now) {
     canEdit: canSelfEdit_(ev, now),
     canRestore: canSelfEdit_(ev, now) && !isClosed_(ev, now),
   };
+}
+
+/** Družstva přihlášky: řádek družstva + hráči seřazení podle šachovnic. */
+function groupTeams_(ev, rows) {
+  const map = {};
+  const order = [];
+  rows.forEach((r) => {
+    const key = r.tournamentId + '|' + norm_(r.team);
+    if (!map[key]) {
+      const t = ev.tournaments.find((x) => x.id === r.tournamentId) || {};
+      map[key] = {
+        key, name: String(r.team || ''), captain: String(r.captain || ''), tournamentId: r.tournamentId,
+        tournament: tourShortById_(ev, r.tournamentId), boards: t.boards || 4, reserves: t.reserves || 0,
+        cancelled: true, players: [],
+      };
+      order.push(key);
+    }
+    const g = map[key];
+    if (r.status !== CANCELLED) g.cancelled = false;
+    if (!isTeamRow_(r) && r.status !== CANCELLED) {
+      const p = rowToPlayer_(r);
+      g.players.push(Object.assign(p, { rowId: r.id, board: toInt_(r.board) }));
+    }
+  });
+  return order.map((k) => {
+    map[k].players.sort((a, b) => a.board - b.board);
+    return map[k];
+  });
+}
+
+function teamRows_(rows, key) {
+  return rows.filter((r) => r.tournamentId + '|' + norm_(r.team) === key);
 }
 
 function extraText_(x, v) {
@@ -821,9 +888,11 @@ function extrasLines_(defs, values) {
  * Změny z odkazu: odhlášení, vrácení odhlášení, doplňující údaje.
  * Čistá funkce – mění předané řádky a vrací { ok, rows (změněné), logs, lines } nebo { ok: false, error }.
  */
-function applyApplicationChanges_(ev, appRows, eventRows, changes, now) {
+function applyApplicationChanges_(ev, appRows, eventRows, changes, now, opts) {
+  opts = opts || {};
+  const admin = !!opts.admin;
   const fail = (error) => ({ ok: false, error });
-  if (!canSelfEdit_(ev, now)) {
+  if (!admin && !canSelfEdit_(ev, now)) {
     return fail('Změny už nejde provést online.' + (ev.contactEmail ? ` Kontaktujte prosím pořadatele: ${ev.contactEmail}.` : ' Kontaktujte prosím pořadatele.'));
   }
   const byId = {};
@@ -850,7 +919,7 @@ function applyApplicationChanges_(ev, appRows, eventRows, changes, now) {
 
   const toRestore = restore.map((id) => byId[id]).filter((r) => r.status === CANCELLED);
   if (toRestore.length) {
-    if (isClosed_(ev, now)) return fail('Přihlašování je uzavřené, odhlášení už nejde vrátit. Kontaktujte prosím pořadatele.');
+    if (!admin && isClosed_(ev, now)) return fail('Přihlašování je uzavřené, odhlášení už nejde vrátit. Kontaktujte prosím pořadatele.');
     for (const r of toRestore) {
       const t = ev.tournaments.find((x) => x.id === r.tournamentId);
       if (!t) return fail('Turnaj už neexistuje.');
@@ -858,7 +927,7 @@ function applyApplicationChanges_(ev, appRows, eventRows, changes, now) {
       if (t.type !== 'team' && others.some((x) => samePlayer_(rowToPlayer_(x), rowToPlayer_(r)))) {
         return fail(`${fullName_(rowToPlayer_(r))} je do turnaje „${t.short || t.name}“ už přihlášen(a) jinou přihláškou.`);
       }
-      if (t.capacity) {
+      if (t.capacity && !admin) {
         const taken = t.type === 'team' ? uniq_(others.map((x) => norm_(x.team))) : others;
         const teamBack = t.type === 'team' && taken.indexOf(norm_(r.team)) >= 0;
         if (!teamBack && taken.length >= t.capacity) return fail(`Turnaj „${t.short || t.name}“ je už naplněný.`);
@@ -867,6 +936,80 @@ function applyApplicationChanges_(ev, appRows, eventRows, changes, now) {
       touch(r);
       logs.push({ registrationId: r.id, action: 'obnovení', detail: label(r) });
       lines.push('Znovu přihlášeno: ' + label(r));
+    }
+  }
+
+  const updatedBy = admin ? opts.adminEmail || 'pořadatel' : 'přihlášený (odkaz z e-mailu)';
+  const newRows = [];
+  const teams = appRows[0].mode === 'team' ? groupTeams_(ev, appRows) : [];
+  const teamByKey = (key) => teams.find((g) => g.key === String(key));
+
+  // odhlášení celého družstva
+  list(changes.cancelTeams).forEach((key) => {
+    const g = teamByKey(key);
+    if (!g) return;
+    const rs = teamRows_(appRows, g.key).filter((r) => r.status !== CANCELLED);
+    if (!rs.length) return;
+    rs.forEach((r) => { r.status = CANCELLED; touch(r); });
+    logs.push({ registrationId: '', action: 'odhláška družstva', detail: `${g.name} – ${g.tournament}` });
+    lines.push(`Odhlášeno družstvo: ${g.name} – ${g.tournament}`);
+  });
+
+  // vrácení odhlášeného družstva (vrátí se hráči odhlášení spolu s ním)
+  for (const key of list(changes.restoreTeams)) {
+    const g = teamByKey(key);
+    if (!g || !g.cancelled) continue;
+    if (!admin && isClosed_(ev, now)) return fail('Přihlašování je uzavřené, odhlášení už nejde vrátit. Kontaktujte prosím pořadatele.');
+    const t = ev.tournaments.find((x) => x.id === g.tournamentId);
+    const otherTeams = uniq_(eventRows.filter((x) => x.tournamentId === g.tournamentId && x.status !== CANCELLED).map((x) => norm_(x.team)));
+    if (otherTeams.indexOf(norm_(g.name)) >= 0) return fail(`Družstvo „${g.name}“ je už přihlášené.`);
+    if (!admin && t && t.capacity && otherTeams.length >= t.capacity) return fail(`Soutěž „${t.short || t.name}“ je už naplněná.`);
+    const rs = teamRows_(appRows, g.key);
+    const last = rs.map((r) => String(r.updatedAt || '')).sort().pop();
+    rs.filter((r) => String(r.updatedAt || '') === last).forEach((r) => { r.status = ''; touch(r); });
+    logs.push({ registrationId: '', action: 'obnovení družstva', detail: `${g.name} – ${g.tournament}` });
+    lines.push(`Znovu přihlášeno družstvo: ${g.name} – ${g.tournament}`);
+  }
+
+  // nová soupiska družstva (přidání, odebrání, pořadí)
+  for (const change of Array.isArray(changes.rosters) ? changes.rosters : []) {
+    const g = teamByKey(change && change.key);
+    if (!g) return fail('Neplatné družstvo.');
+    if (g.cancelled) return fail(`Družstvo „${g.name}“ je odhlášené.`);
+    const t = ev.tournaments.find((x) => x.id === g.tournamentId);
+    if (!t) return fail('Soutěž družstva už neexistuje.');
+    const roster = cleanRoster_(t, change.players, eventYear_(ev), { admin, requireFull: false, label: g.name });
+    if (roster.error) return fail(`${g.name}: ${roster.error}`);
+    const mine = teamRows_(appRows, g.key);
+    const others = eventRows.filter((x) => x.tournamentId === t.id && x.status !== CANCELLED && !isTeamRow_(x) && mine.indexOf(x) < 0);
+    for (const p of roster.players) {
+      const clash = others.find((x) => samePlayer_(rowToPlayer_(x), p));
+      if (clash) return fail(`${fullName_(p)} už hraje za družstvo „${clash.team}“.`);
+    }
+    const current = mine.filter((r) => !isTeamRow_(r) && r.status !== CANCELLED);
+    const used = [];
+    let changed = false;
+    roster.players.forEach((p, i) => {
+      const r = current.find((x) => used.indexOf(x) < 0 && samePlayer_(rowToPlayer_(x), p));
+      if (r) {
+        used.push(r);
+        if (toInt_(r.board) !== i + 1) { r.board = i + 1; touch(r); changed = true; }
+        return;
+      }
+      const src = mine.find(isTeamRow_) || mine[0];
+      newRows.push(Object.assign({}, {
+        applicationId: src.applicationId, eventId: src.eventId, tournamentId: t.id, email: src.email, mode: 'team',
+        extras: src.extras, editToken: src.editToken, team: src.team, captain: src.captain, orgNote: '',
+      }, playerToRow_(p), { id: makeId_(now, 8), createdAt: now.toISOString(), status: '', board: i + 1 }));
+      changed = true;
+    });
+    current.filter((r) => used.indexOf(r) < 0).forEach((r) => { r.status = CANCELLED; touch(r); changed = true; });
+    if (changed) {
+      const text = roster.players.length
+        ? roster.players.map((p, i) => `${i + 1 > (t.boards || 4) ? 'N' : i + 1}. ${fullName_(p)}`).join(', ')
+        : 'prázdná';
+      logs.push({ registrationId: '', action: 'soupiska', detail: `${g.name}: ${text}` });
+      lines.push(`Soupiska ${g.name}: ${text}`);
     }
   }
 
@@ -886,34 +1029,48 @@ function applyApplicationChanges_(ev, appRows, eventRows, changes, now) {
   }
 
   if (!logs.length) return fail('Nebyla provedena žádná změna.');
-  touched.forEach((r) => { r.updatedAt = now.toISOString(); r.updatedBy = 'přihlášený (odkaz z e-mailu)'; });
-  return { ok: true, rows: touched, logs, lines };
+  touched.forEach((r) => { r.updatedAt = now.toISOString(); r.updatedBy = updatedBy; });
+  newRows.forEach((r) => { r.updatedAt = now.toISOString(); r.updatedBy = updatedBy; });
+  return { ok: true, rows: touched, newRows, logs, lines };
 }
 
-function updateApplication_(body) {
+function updateApplication_(body, adminUser) {
   const app = findApplication_(body.token);
   const ev = app.ev;
+  if (adminUser) assertCanEdit_(adminUser, ev);
   const now = new Date();
   const eventRows = table_('registrations').rows.filter((r) => r.eventId === ev.id);
-  const res = applyApplicationChanges_(ev, app.rows, eventRows, body.changes || {}, now);
+  const res = applyApplicationChanges_(ev, app.rows, eventRows, body.changes || {}, now,
+    { admin: !!adminUser, adminEmail: adminUser ? adminUser.email : '' });
   if (!res.ok) throw userError_(res.error);
   res.rows.forEach((r) => update_('registrations', r));
-  logChanges_(ev, app.rows[0].applicationId, res.logs, 'přihlášený (odkaz z e-mailu)', now);
+  insert_('registrations', res.newRows);
+  logChanges_(ev, app.rows[0].applicationId, res.logs, adminUser ? adminUser.email : 'přihlášený (odkaz z e-mailu)', now);
   SpreadsheetApp.flush();
-  try {
-    sendChangeEmails_(ev, app.rows, res.lines);
-  } catch (err) {
-    console.error('E-mail o změně se nepodařilo odeslat', err);
+  const rows = table_('registrations').rows.filter((r) => r.editToken === app.rows[0].editToken);
+  if (!adminUser) {
+    try {
+      sendChangeEmails_(ev, rows, res.lines);
+    } catch (err) {
+      console.error('E-mail o změně se nepodařilo odeslat', err);
+    }
   }
-  return Object.assign(applicationView_(ev, app.rows, now), { saved: res.lines });
+  const view = applicationView_(ev, rows, now);
+  if (adminUser) Object.assign(view, { canEdit: true, canRestore: true, admin: true });
+  return Object.assign(view, { saved: res.lines });
 }
 
 function sendChangeEmails_(ev, rows, lines) {
   const first = rows[0];
   const active = rows.filter((r) => r.status !== CANCELLED);
-  const state = active.length
-    ? active.map((r) => `  • ${fullName_(rowToPlayer_(r))} – ${tourShortById_(ev, r.tournamentId)}`)
-    : ['  (všichni hráči jsou odhlášeni)'];
+  let state;
+  if (!active.length) state = ['  (všichni hráči jsou odhlášeni)'];
+  else if (first.mode === 'team') {
+    state = groupTeams_(ev, rows).filter((g) => !g.cancelled).map((g) => `  • ${g.name} (${g.tournament}): ` +
+      (g.players.length ? g.players.map((p) => `${p.board > g.boards ? 'N' : p.board}. ${fullName_(p)}`).join(', ') : 'soupiska zatím není'));
+  } else {
+    state = active.map((r) => `  • ${fullName_(rowToPlayer_(r))} – ${tourShortById_(ev, r.tournamentId)}`);
+  }
   const url = editUrl_(first.editToken);
   if (first.email) {
     const body = ['Dobrý den,', '', `ve vaší přihlášce na akci ${ev.name} byly provedeny tyto změny:`, '']
@@ -1129,6 +1286,16 @@ const ADMIN_ACTIONS = {
       clearPublicCache_();
       return {};
     });
+  },
+
+  application(body, user) {
+    const app = findApplication_(body.token);
+    assertCanEdit_(user, app.ev);
+    return Object.assign(applicationView_(app.ev, app.rows, new Date()), { canEdit: true, canRestore: true, admin: true });
+  },
+
+  updateApplication(body, user) {
+    return withLock_(() => updateApplication_(body, user));
   },
 
   addRegistration(body, user) {

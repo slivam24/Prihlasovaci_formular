@@ -65,3 +65,9 @@ test('ceny doplňků', () => {
   assert.equal(R.extraText(obedy, { ne: 2, so: 1 }), 'so × 1, ne × 2');
   assert.equal(R.formatMoney(1234.5).replace(/\s/g, ' '), '1 234,5 Kč');
 });
+
+test('skloňování velikosti družstva', () => {
+  assert.equal(R.teamSize({ boards: 4, reserves: 1 }), '4 šachovnice + 1 náhradník');
+  assert.equal(R.teamSize({ boards: 6, reserves: 2 }), '6 šachovnic + 2 náhradníci');
+  assert.equal(R.teamSize({ boards: 4, reserves: 0 }), '4 šachovnice');
+});

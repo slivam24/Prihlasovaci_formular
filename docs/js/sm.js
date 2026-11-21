@@ -90,7 +90,7 @@
 
   /** Družstva: sloupce SM + Družstvo, Šachovnice, Kapitán. Vstupem jsou řádky přihlášek. */
   function buildTeamTable(regs, opts) {
-    const sorted = regs.slice().sort((a, b) =>
+    const sorted = regs.filter((r) => r.surname).sort((a, b) =>
       String(a.team).localeCompare(String(b.team), 'cs') || toInt(a.board) - toInt(b.board));
     const header = SM_HEADER.concat(['Družstvo', 'Šachovnice', 'Kapitán']);
     return [header].concat(sorted.map((r, i) =>

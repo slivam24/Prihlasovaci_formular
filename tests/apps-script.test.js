@@ -125,12 +125,13 @@ test('chybějící údaje a past na roboty', () => {
   assert.equal(register({ mode: 'individual', email: 'a@b.cz', player: lokPlayer, tournaments: [T['Open rapid']], web: 'spam' }).ok, false);
 });
 
-test('družstvo: jedna přihláška, řádek za každého hráče', () => {
+test('družstvo: řádek družstva + řádek za každého hráče', () => {
   const p = (id, year) => ({ ...lokPlayer, id, year, surname: 'Hráč' + id });
   const team = { tournamentId: T['Družstva'], name: 'Spartak A', captain: 'Jan Novák', players: [p(1, 2010), p(2, 2011), p(3, 2012), p(4, 2013), null] };
   const r = register({ mode: 'team', email: 'k@b.cz', team, extras: { doprava: ['sobota tam'], poznamka: 'ok' } });
   assert.equal(r.ok, true, r.error);
-  assert.deepEqual(r.rows.map((x) => x.board), [1, 2, 3, 4]);
+  assert.deepEqual(r.rows.map((x) => x.board), [0, 1, 2, 3, 4]);
+  assert.equal(r.rows[0].surname, '', 'řádek družstva nemá hráče');
   assert.equal(r.rows[0].team, 'Spartak A');
   assert.equal(r.rows[0].captain, 'Jan Novák');
   assert.deepEqual(JSON.parse(r.rows[0].extras), { sdeleni: '', poznamka: 'ok' }, 'doprava není u družstev v nabídce');
@@ -138,8 +139,8 @@ test('družstvo: jedna přihláška, řádek za každého hráče', () => {
   const other = [p(5, 2010), p(6, 2010), p(7, 2010), p(8, 2010)];
   assert.match(register({ mode: 'team', email: 'k@b.cz', team: { ...team, players: other } }, r.rows).error, /už je přihlášeno/);
   assert.match(register({ mode: 'team', email: 'k@b.cz', team: { ...team, name: 'B', players: [p(1, 2010)].concat(other.slice(1)) } }, r.rows).error, /už hraje za družstvo/);
-  assert.match(register({ mode: 'team', email: 'k@b.cz', team: { ...team, name: 'C', players: [p(9, 2010), null] } }).error, /2\. šachovnice/);
-  assert.match(register({ mode: 'team', email: 'k@b.cz', team: { ...team, name: 'D', players: [p(9, 2010), p(9, 2010), p(7, 2010), p(8, 2010)] } }).error, /dvakrát/);
+  assert.match(register({ mode: 'team', email: 'k@b.cz', team: { ...team, name: 'C', players: [p(9, 2010), null] } }).error, /aspoň na 4 šachovnice/);
+  assert.match(register({ mode: 'team', email: 'k@b.cz', team: { ...team, name: 'D', players: [p(9, 2010), p(9, 2010), p(7, 2010), p(8, 2010)] } }).error, /na soupisce dvakrát/);
 });
 
 test('veřejný seznam neobsahuje e-maily a zrušené', () => {

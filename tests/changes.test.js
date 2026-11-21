@@ -183,3 +183,71 @@ test('obědy a ubytování: počty kusů s cenou', () => {
   assert.match(admin('saveEvent', { event: { name: 'X', dateFrom: '2099-01-01', tournaments: [{ name: 'A' }],
     extras: [{ label: 'Obědy', type: 'quantity', options: [] }] } }).error, /zadejte možnosti/);
 });
+
+test('družstva: víc družstev v jedné přihlášce, soupiska později, úprava soupisky odkazem', () => {
+  const { gas, admin, ev } = setup({
+    tournaments: [{ name: 'Družstva mládeže', short: 'Družstva', type: 'team', boards: 2, reserves: 1, minBirthYear: 2008, capacity: 3 }],
+    extras: [],
+  });
+  const t = ev.tournaments[0];
+  const kid = (id, surname, year) => player(id, surname, year || 2012);
+  // dvě družstva: A s plnou soupiskou, B se soupiskou později
+  let res = gas.post({ action: 'register', slug: ev.slug, mode: 'team', email: 'trener@klub.cz', teams: [
+    { tournamentId: t.id, name: 'Spartak A', captain: 'Trenér', players: [kid(1, 'Alfa'), kid(2, 'Beta'), kid(3, 'Gama')] },
+    { tournamentId: t.id, name: 'Spartak B', captain: 'Trenér', rosterLater: true, players: [] },
+  ] });
+  assert.equal(res.ok, true, res.error);
+  assert.match(gas.mails[0].body, /Přihlášená družstva \(2\)[\s\S]*Spartak A[\s\S]*1\. Alfa Jan[\s\S]*N\. Gama Jan[\s\S]*Spartak B[\s\S]*soupiska bude doplněna/);
+  let list = gas.get({ action: 'list', slug: ev.slug });
+  assert.deepEqual(list.teams[t.id].map((x) => [x.team, x.players.length]), [['Spartak A', 3], ['Spartak B', 0]]);
+
+  // chyby při registraci
+  const bad = (teams) => gas.post({ action: 'register', slug: ev.slug, mode: 'team', email: 'x@y.cz', teams }).error;
+  assert.match(bad([{ tournamentId: t.id, name: 'C', captain: 'X', players: [kid(9, 'Nový')] }]), /aspoň na 2 šachovnice/);
+  assert.match(bad([{ tournamentId: t.id, name: 'C', captain: 'X', players: [kid(9, 'N1'), kid(10, 'N2'), kid(11, 'N3'), kid(12, 'N4')] }]), /nejvýše 3 hráčů/);
+  assert.match(bad([{ tournamentId: t.id, name: 'C', captain: 'X', rosterLater: true }, { tournamentId: t.id, name: 'c', captain: 'X', rosterLater: true }]), /už je přihlášeno/);
+  assert.match(bad([{ tournamentId: t.id, name: 'C', captain: 'X', players: [kid(1, 'Alfa'), kid(10, 'N2')] }]), /už hraje za družstvo „Spartak A“/);
+  assert.match(bad([{ tournamentId: t.id, name: 'C', captain: 'X', players: [kid(9, 'N1'), kid(10, 'Starý', 1990)] }]), /2008 a mladší/);
+  assert.match(bad([{ tournamentId: t.id, name: 'C', captain: 'X', rosterLater: true }, { tournamentId: t.id, name: 'D', captain: 'X', rosterLater: true }]), /naplněna/);
+
+  // stránka změn: družstva se soupiskami
+  const view = gas.get({ action: 'application', token: res.editToken });
+  assert.deepEqual(view.application.teams.map((g) => [g.name, g.players.map((p) => p.board)]), [['Spartak A', [1, 2, 3]], ['Spartak B', []]]);
+  const [A, B] = view.application.teams;
+
+  // doplnit soupisku B, přeřadit A (Gama na 1., Beta pryč)
+  gas.mails.length = 0;
+  res = gas.post({ action: 'updateApplication', token: res.editToken, changes: { rosters: [
+    { key: B.key, players: [kid(4, 'Delta'), kid(5, 'Epsilon')] },
+    { key: A.key, players: [A.players[2], A.players[0]] },
+  ] } });
+  assert.equal(res.ok, true, res.error);
+  assert.deepEqual(res.saved, ['Soupiska Spartak B: 1. Delta Jan, 2. Epsilon Jan', 'Soupiska Spartak A: 1. Gama Jan, 2. Alfa Jan']);
+  assert.deepEqual(res.application.teams.map((g) => g.players.map((p) => `${p.board}. ${p.surname}`)),
+    [['1. Gama', '2. Alfa'], ['1. Delta', '2. Epsilon']]);
+  assert.match(gas.mails[0].body, /Spartak A \(Družstva\): 1\. Gama Jan, 2\. Alfa Jan/);
+  // Beta je odhlášený a může hrát za jiné družstvo
+  list = gas.get({ action: 'list', slug: ev.slug });
+  assert.deepEqual(list.teams[t.id].map((x) => x.players.map((p) => p.name)), [['Gama Jan', 'Alfa Jan'], ['Delta Jan', 'Epsilon Jan']]);
+  // hráč z jiného družstva nejde
+  const token = view.application && admin('event', { id: ev.id }).registrations[0].editToken;
+  assert.match(gas.post({ action: 'updateApplication', token, changes: { rosters: [{ key: B.key, players: [kid(1, 'Alfa'), kid(4, 'Delta')] }] } }).error,
+    /už hraje za družstvo „Spartak A“/);
+
+  // odhlášení a vrácení družstva
+  res = gas.post({ action: 'updateApplication', token, changes: { cancelTeams: [B.key] } });
+  assert.deepEqual(res.saved, ['Odhlášeno družstvo: Spartak B – Družstva']);
+  assert.equal(res.application.teams[1].cancelled, true);
+  res = gas.post({ action: 'updateApplication', token, changes: { restoreTeams: [B.key] } });
+  assert.equal(res.ok, true, res.error);
+  assert.deepEqual(res.application.teams[1].players.map((p) => p.surname), ['Delta', 'Epsilon']);
+
+  // pořadatel: po termínu změny přes stejnou stránku bez omezení
+  const changes = admin('event', { id: ev.id }).changes.map((c) => c.action);
+  assert.deepEqual(changes, ['soupiska', 'soupiska', 'odhláška družstva', 'obnovení družstva']);
+  const adm = admin('application', { token });
+  assert.equal(adm.admin, true);
+  const ar = admin('updateApplication', { token, changes: { rosters: [{ key: B.key, players: [kid(4, 'Delta'), kid(5, 'Epsilon'), kid(6, 'Starší', 1990)] }] } });
+  assert.equal(ar.ok, true, ar.error);
+  assert.equal(admin('event', { id: ev.id }).changes.at(-1).by, OWNER);
+});

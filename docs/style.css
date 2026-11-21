@@ -301,3 +301,28 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 .extra-qty input[type="number"] { width: 80px; text-align: right; }
 .extras-total { padding: 10px 14px; border-radius: 8px; background: var(--accent-soft); }
 .extra-qty .qty-row > .small { min-width: 3.5em; }
+
+/* družstva a soupiska */
+.team-card { position: relative; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+.team-card + .team-card { margin-top: 14px; }
+.team-card > * + * { margin-top: 12px; }
+.team-card .remove-team { position: absolute; top: 10px; right: 10px; }
+.team-title { margin: 0; }
+.roster-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 8px; }
+.roster-list:empty { display: none; }
+.roster-row { display: flex; gap: 10px; align-items: center; padding: 6px 10px; }
+.roster-row + .roster-row { border-top: 1px solid var(--border); }
+.roster-row.reserve { background: var(--bg); }
+.roster-row.invalid { background: var(--danger-soft); }
+.board-no { width: 2.2em; font-weight: 700; color: var(--muted); flex: none; }
+.rr-name { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.rr-actions { display: flex; gap: 2px; align-items: center; flex: none; }
+.rr-actions select { padding: 3px 6px; font-size: 0.85rem; max-width: 130px; }
+.rr-actions button:disabled { opacity: 0.3; cursor: default; }
+.roster-add { margin-top: 8px; }
+.roster-add .picker .manual-check { font-size: 0.9rem; }
+.team-block + .team-block { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.team-block > * + * { margin-top: 10px; }
+.team-block h3 { margin: 0; }
+.team-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin: 18px 0 6px; }
+.team-head h3 { margin: 0; }

@@ -138,9 +138,10 @@ test('družstvo a data v tabulce', () => {
   assert.equal(res.ok, true, res.error);
   const sheet = gas.sheets['Přihlášky'];
   const header = sheet.data[0];
-  assert.equal(sheet.getLastRow(), 3);
+  assert.equal(sheet.getLastRow(), 4, 'družstvo + 2 hráči');
   assert.equal(sheet.data[1][header.indexOf('team')], 'Spartak');
-  assert.equal(sheet.data[2][header.indexOf('board')], 2);
+  assert.equal(sheet.data[1][header.indexOf('board')], 0);
+  assert.equal(sheet.data[3][header.indexOf('board')], 2);
   assert.equal(gas.sheets['Akce'].data[1][gas.sheets['Akce'].data[0].indexOf('dateFrom')], '2027-05-01');
   const list = gas.get({ action: 'list', slug: ev.slug });
   assert.equal(list.teams[ev.tournaments[0].id][0].players.length, 2);

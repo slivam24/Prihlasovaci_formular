@@ -38,7 +38,8 @@
         out.push(`<section class="card" id="${esc(anchor)}"><h2>${esc(R.tournamentLabel(t))}</h2>
           <p class="muted">Přihlášených družstev: ${teams.length}${cap}</p>
           ${teams.map((tm) => `<h3>${esc(tm.team)} <span class="muted small">kapitán: ${esc(tm.captain)}</span></h3>
-            <div class="table-wrap"><table>${head}<tbody>${tm.players.map(playerRow).join('')}</tbody></table></div>`).join('')}
+            ${tm.players.length ? `<div class="table-wrap"><table>${head}<tbody>${tm.players.map(playerRow).join('')}</tbody></table></div>`
+              : '<p class="muted small">Soupiska bude doplněna.</p>'}`).join('')}
         </section>`);
       } else {
         const players = data.tournaments[t.id] || [];

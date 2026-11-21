@@ -118,7 +118,19 @@
     return (extras || []).reduce((sum, x) => sum + extraPrice(x, (values || {})[x.id]), 0);
   }
 
+  /** Skloňování: plural(4, 'šachovnice', 'šachovnice', 'šachovnic'). */
+  function plural(n, one, few, many) {
+    return `${n} ${n === 1 ? one : n >= 2 && n <= 4 ? few : many}`;
+  }
+
+  function teamSize(t) {
+    const r = t.reserves || 0;
+    return plural(t.boards || 4, 'šachovnice', 'šachovnice', 'šachovnic') +
+      (r ? ' + ' + plural(r, 'náhradník', 'náhradníci', 'náhradníků') : '');
+  }
+
   const api = {
+    plural, teamSize,
     formatMoney, optionPrice, extraPrice, extraText, extrasTotal,
     norm, eventYear, isClosed, ruleText, eligibility, ratingWarning, samePlayer,
     tournamentLabel, STATUS_LABELS, formatDate, formatRange,

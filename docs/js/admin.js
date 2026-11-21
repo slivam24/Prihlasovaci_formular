@@ -29,7 +29,7 @@
 
   function getToken() {
     let t = null;
-    try { t = sessionStorage.getItem(TOKEN_KEY); } catch (e) { /* soukromé okno */ }
+    try { t = localStorage.getItem(TOKEN_KEY); } catch (e) { /* soukromé okno */ }
     if (!t) return null;
     const p = tokenPayload(t);
     if (!p || p.exp * 1000 < Date.now() + 30000) {
@@ -39,8 +39,8 @@
     return t;
   }
 
-  function setToken(t) { try { sessionStorage.setItem(TOKEN_KEY, t); } catch (e) { /* nic */ } }
-  function clearToken() { try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) { /* nic */ } }
+  function setToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) { /* nic */ } }
+  function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* nic */ } }
 
   async function call(action, body) {
     const idToken = getToken();
@@ -650,13 +650,23 @@
     const active = all.filter((r) => r.status !== 'zrušeno');
     const shown = showCancelled ? all : active;
     if (t.type === 'team') {
+      // družstvo = řádek družstva (bez hráče) + hráči soupisky
       const teams = {};
       shown.forEach((r) => { (teams[r.team] = teams[r.team] || []).push(r); });
       const names = Object.keys(teams).sort((a, b) => a.localeCompare(b, 'cs'));
       return names.length ? names.map((n) => {
-        const rows = teams[n].sort((a, b) => a.board - b.board);
-        return `<h3>${esc(n)} <span class="small muted">kapitán: ${esc(rows[0].captain || '')}</span></h3>
-          <div class="table-wrap"><table class="admin-table">${regHead}<tbody>${rows.map(regRow).join('')}</tbody></table></div>`;
+        const rows = teams[n];
+        const players = rows.filter((r) => r.surname).sort((a, b) => a.board - b.board);
+        const first = rows.find((r) => !r.surname) || rows[0];
+        const cancelled = rows.every((r) => r.status === 'zrušeno');
+        const link = first.editToken ? `zmena.html?t=${encodeURIComponent(first.editToken)}&admin=1` : '';
+        return `<div class="team-head">
+            <h3>${esc(n)} ${cancelled ? '<span class="badge danger-badge">odhlášeno</span>' : ''}</h3>
+            <span class="small muted">kapitán: ${esc(first.captain || '')} · ${esc(first.email || '')} · soupiska ${players.filter((r) => r.status !== 'zrušeno').length}/${t.boards || 4}${t.reserves ? ' + ' + t.reserves : ''}</span>
+            ${link ? `<a class="small" href="${link}" target="_blank">Upravit soupisku / odhlásit ↗</a>` : ''}
+          </div>
+          ${players.length ? `<div class="table-wrap"><table class="admin-table">${regHead}<tbody>${players.map(regRow).join('')}</tbody></table></div>`
+            : '<p class="muted small">Soupiska zatím není.</p>'}`;
       }).join('') : '<p class="muted">Zatím žádné přihlášky.</p>';
     }
     const sorted = shown.slice().sort((a, b) => window.SM.byRating(window.SM.regToPlayer(a), window.SM.regToPlayer(b)));
@@ -813,7 +823,7 @@
 
     // osoby a doplňky: jeden řádek na hráče v přihlášce (aktuální stav ubytování, obědů…)
     const persons = {};
-    current.registrations.forEach((r) => {
+    current.registrations.filter((r) => r.surname).forEach((r) => {
       const key = `${r.applicationId}|${R.norm(r.surname + ' ' + r.firstName)}|${r.year}`;
       const p = persons[key] || (persons[key] = { r, active: [], cancelled: [], last: '', lastBy: '' });
       (r.status === 'zrušeno' ? p.cancelled : p.active).push(tName(r.tournamentId));

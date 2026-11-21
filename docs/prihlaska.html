@@ -46,15 +46,11 @@
       </section>
 
       <section id="team" data-mode="team" hidden>
-        <fieldset id="team-tournament" class="tournaments" hidden>
-          <legend>Soutěž družstev <span class="req">*</span></legend>
-          <div id="team-tournament-list"></div>
-        </fieldset>
-        <div class="grid">
-          <label>Název družstva <span class="req">*</span><input name="teamName"></label>
-          <label>Kapitán / vedoucí družstva <span class="req">*</span><input name="teamCaptain"></label>
+        <div id="teams"></div>
+        <div class="add-player">
+          <button type="button" class="button" id="add-team">+ Přidat další družstvo</button>
+          <span class="hint">Za klub můžete přihlásit víc družstev najednou. Hráče přidáte našeptávačem u družstva, nebo přes „Vybrat hráče z listiny“.</span>
         </div>
-        <div id="team-players"></div>
       </section>
 
       <div id="extras"></div>
@@ -84,6 +80,7 @@
           <div id="f-list" class="finder-list"></div>
           <div id="f-actions" class="finder-actions" hidden>
             <div id="f-tours" class="finder-tours"></div>
+            <label id="f-team-wrap" class="block" hidden>Přidat do družstva<select id="f-team"></select></label>
             <button type="button" class="primary" id="f-add">Přidat vybrané do přihlášky</button>
             <span id="f-msg" class="small" role="status"></span>
           </div>
@@ -100,6 +97,7 @@
   <script src="js/players.js"></script>
   <script src="js/picker.js"></script>
   <script src="js/extras.js"></script>
+  <script src="js/roster.js"></script>
   <script src="js/form.js"></script>
 </body>
 </html>
