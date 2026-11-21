@@ -392,6 +392,16 @@ function slugify_(s) {
   return norm_(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
 
+function addDays_(iso, n) {
+  const d = new Date(Date.UTC(toInt_(iso.slice(0, 4)), toInt_(iso.slice(5, 7)) - 1, toInt_(iso.slice(8, 10)) + n));
+  return d.toISOString().slice(0, 10);
+}
+
+function daysBetween_(a, b) {
+  const t = (iso) => Date.UTC(toInt_(iso.slice(0, 4)), toInt_(iso.slice(5, 7)) - 1, toInt_(iso.slice(8, 10)));
+  return Math.round((t(b) - t(a)) / 864e5);
+}
+
 function cleanDate_(s) {
   const m = String(s || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? m[0] : '';
@@ -1259,9 +1269,20 @@ const ADMIN_ACTIONS = {
   copyEvent(body, user) {
     const src = loadEventById_(body.id);
     assertCanEdit_(user, src);
-    const shift = toInt_(body.shiftYears);
-    const shiftDate = (d) => (d && shift ? String(toInt_(d.slice(0, 4)) + shift) + d.slice(4) : d);
-    const shiftYear = (y) => (y && shift ? y + shift : y);
+    // nový začátek → posun všech dat o stejný počet dní; ročníky o rozdíl let (nebo podle shiftYears)
+    const newFrom = cleanDate_(body.dateFrom);
+    const days = newFrom && src.dateFrom ? daysBetween_(src.dateFrom, newFrom) : 0;
+    let years = toInt_(body.shiftYears);
+    if (newFrom && body.shiftBirthYears !== false && body.shiftYears == null) {
+      years = toInt_(newFrom.slice(0, 4)) - toInt_(String(src.dateFrom).slice(0, 4));
+    }
+    if (newFrom && body.shiftBirthYears === false) years = 0;
+    const shiftDate = (d) => {
+      if (!d) return d;
+      if (newFrom) return addDays_(d, days);
+      return years ? String(toInt_(d.slice(0, 4)) + years) + d.slice(4) : d;
+    };
+    const shiftYear = (y) => (y && years ? y + years : y);
     const copy = {
       name: clean_(body.name, 150) || src.name + ' (kopie)',
       place: src.place, dateFrom: shiftDate(src.dateFrom), dateTo: shiftDate(src.dateTo),

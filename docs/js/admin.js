@@ -279,22 +279,48 @@
   }
 
   function copyEventDialog(ev) {
+    const addDays = (iso, n) => {
+      const d = new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10) + n));
+      return d.toISOString().slice(0, 10);
+    };
+    const daysBetween = (x, y) => Math.round((Date.parse(y + 'T00:00:00Z') - Date.parse(x + 'T00:00:00Z')) / 864e5);
     const nextName = ev.name.replace(/\b(20\d\d)\b/, (y) => String(+y + 1));
+    // stejný den v týdnu o rok později (52 týdnů)
+    const nextFrom = ev.dateFrom ? addDays(ev.dateFrom, 364) : '';
+    const hasYears = (ev.tournaments || []).some((t) => t.minBirthYear || t.maxBirthYear);
     openDialog(`<form method="dialog" class="dialog-form">
       <h2>Kopírovat akci</h2>
-      <p class="muted small">Zkopírují se údaje, turnaje i doplňující otázky. Přihlášky ne. Kopie bude ve stavu „rozpracovaná“.</p>
+      <p class="muted small">Zkopíruje se vše kromě přihlášek: turnaje, ročníky, doplňující otázky s cenami, texty a správci.
+        Kopie bude rozpracovaná a hned se otevře k úpravám.</p>
       <label class="block">Název nové akce<input name="name" value="${esc(nextName)}"></label>
-      <label class="block">Posunout data a ročníky o
-        <select name="shift"><option value="0">0 let</option><option value="1" selected>1 rok</option><option value="2">2 roky</option></select>
-        <span class="hint">Např. „ročník 2014 a mladší“ se změní na 2015.</span></label>
+      <label class="block">Začátek nové akce<input type="date" name="dateFrom" value="${esc(nextFrom)}">
+        <span class="hint" id="copy-preview"></span></label>
+      ${hasYears ? '<label class="check"><input type="checkbox" name="shiftBirthYears" checked> posunout ročníky u turnajů podle roku akce</label>' : ''}
       <div class="errors" hidden></div>
-      <p class="actions"><button class="primary" value="ok">Kopírovat</button><button type="button" data-close>Zrušit</button></p>
+      <p class="actions"><button class="primary" value="ok">Kopírovat a upravit</button><button type="button" data-close>Zrušit</button></p>
     </form>`, (d) => {
-      $('form', d).addEventListener('submit', async (e) => {
+      const f = $('form', d);
+      const preview = () => {
+        const from = f.dateFrom.value;
+        if (!from || !ev.dateFrom) { $('#copy-preview', d).textContent = ''; return; }
+        const n = daysBetween(ev.dateFrom, from);
+        const parts = [`posun o ${n} dní`];
+        if (ev.dateTo) parts.push('konec ' + R.formatDate(addDays(ev.dateTo, n)));
+        if (ev.deadline) parts.push('uzávěrka ' + R.formatDate(addDays(ev.deadline, n)));
+        const years = +from.slice(0, 4) - +ev.dateFrom.slice(0, 4);
+        if (hasYears && years && f.shiftBirthYears && f.shiftBirthYears.checked) parts.push(`ročníky o ${years > 0 ? '+' : ''}${years}`);
+        $('#copy-preview', d).textContent = parts.join(' · ');
+      };
+      f.addEventListener('input', preview);
+      f.addEventListener('change', preview);
+      preview();
+      f.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const f = e.target;
         try {
-          const res = await call('copyEvent', { id: ev.id, name: f.name.value, shiftYears: +f.shift.value });
+          const res = await call('copyEvent', {
+            id: ev.id, name: f.name.value, dateFrom: f.dateFrom.value,
+            shiftBirthYears: f.shiftBirthYears ? f.shiftBirthYears.checked : true,
+          });
           dialog.close();
           location.hash = `#/akce/${res.event.id}/upravit`;
         } catch (err) {
@@ -729,6 +755,7 @@
         <div class="actions">
           <button type="button" class="button ${canOpen ? 'primary' : ''}" id="toggle-status">${canOpen ? 'Otevřít přihlašování' : 'Uzavřít přihlašování'}</button>
           <a class="button" href="#/akce/${esc(ev.id)}/upravit">Upravit akci</a>
+          <button type="button" class="button" id="copy-event">Kopírovat akci</button>
         </div>
       </div>
       <p class="links">
@@ -778,6 +805,7 @@
       } catch (e) { alert(e.message); }
     });
     $('#add-reg').addEventListener('click', addRegistrationDialog);
+    $('#copy-event').addEventListener('click', () => copyEventDialog(ev));
     $('#export-all').addEventListener('click', exportAll);
     $$('[data-export-txt]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportTxt, 'txt')));
     $$('[data-export-xlsx]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportXlsx, 'xlsx')));

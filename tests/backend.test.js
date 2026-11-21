@@ -172,3 +172,19 @@ test('výprava přes API: jeden e-mail se všemi hráči', () => {
   assert.equal(list.tournaments[rapid.id].length, 1);
   assert.equal(list.tournaments[blesk.id].length, 2);
 });
+
+test('kopie akce podle nového data začátku', () => {
+  const { admin } = setup();
+  const ev = admin('saveEvent', { event: {
+    name: 'Festival 2026', dateFrom: '2026-05-08', dateTo: '2026-05-10', deadline: '2026-05-02', status: 'otevreno',
+    tournaments: [{ name: 'Žáci', minBirthYear: 2014 }, { name: 'Neregistrovaní', maxBirthYear: 2013 }],
+  } }).event;
+  let c = admin('copyEvent', { id: ev.id, name: 'Festival 2027', dateFrom: '2027-05-07' }).event;
+  assert.deepEqual([c.dateFrom, c.dateTo, c.deadline], ['2027-05-07', '2027-05-09', '2027-05-01']);
+  assert.deepEqual(c.tournaments.map((t) => [t.minBirthYear, t.maxBirthYear]), [[2015, null], [null, 2014]]);
+  assert.equal(c.status, 'koncept');
+  c = admin('copyEvent', { id: ev.id, name: 'Festival 2027 b', dateFrom: '2027-05-07', shiftBirthYears: false }).event;
+  assert.equal(c.tournaments[0].minBirthYear, 2014, 'ročníky beze změny');
+  c = admin('copyEvent', { id: ev.id, name: 'Podzim 2026', dateFrom: '2026-10-02' }).event;
+  assert.deepEqual([c.dateTo, c.deadline, c.tournaments[0].minBirthYear], ['2026-10-04', '2026-09-26', 2014]);
+});
