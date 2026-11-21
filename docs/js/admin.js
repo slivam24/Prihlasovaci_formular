@@ -532,7 +532,7 @@
     Object.keys(R.STATUS_LABELS).forEach((k) => { statusOpts[k] = R.STATUS_LABELS[k]; });
 
     app.innerHTML = `
-      <p class="small"><a href="${id ? '#/akce/' + esc(id) : '#/'}">← Zpět</a></p>
+      <p class="back small"><a href="${id ? '#/akce/' + esc(id) : '#/'}">← Zpět</a></p>
       <h1>${id ? 'Upravit akci' : imported ? 'Nová akce z importu' : 'Nová akce'}</h1>
       ${imported ? `<div class="card import-note">
         <strong>Údaje načtené z importu – před uložením je zkontrolujte</strong>, hlavně data, ročníky a limity ELO.
@@ -694,8 +694,7 @@
     let data = {};
     try { data = JSON.parse(r.extras || '{}'); } catch (e) { /* nic */ }
     return (current.event.extras || []).map((x) => {
-      const v = data[x.id];
-      const t = Array.isArray(v) ? v.join(', ') : v;
+      const t = data[x.id] == null ? '' : R.extraText(x, data[x.id]);
       return t ? `${x.label}: ${t}` : '';
     }).filter(Boolean).join(' · ');
   }
@@ -826,7 +825,7 @@
     const listUrl = `seznam.html?akce=${encodeURIComponent(ev.slug)}`;
     const canOpen = ev.status !== 'otevreno';
     app.innerHTML = `
-      <p class="small"><a href="#/">← Všechny akce</a></p>
+      <p class="back small"><a href="#/">← Všechny akce</a></p>
       <div class="page-head">
         <div>
           <h1>${esc(ev.name)}</h1>
@@ -846,6 +845,9 @@
         <button type="button" class="link" id="copy-link">Zkopírovat odkaz na formulář</button>
       </p>
       ${ev.status === 'koncept' ? '<p class="notice-inline">Akce je rozpracovaná – formulář ani seznam zatím nejsou veřejné.</p>' : ''}
+
+      ${ev.tournaments.length > 1 ? `<nav class="jump" aria-label="Turnaje akce"><span class="small muted">Přejít na:</span>${ev.tournaments.map((t) =>
+        `<button type="button" class="chip" data-jump="t-${esc(t.id)}">${esc(t.short || t.name)} <strong>${t.count}</strong></button>`).join('')}</nav>` : ''}
 
       <div class="toolbar">
         <button type="button" class="button primary" id="add-reg">+ Přidat hráče</button>
@@ -872,6 +874,10 @@
       ${changesSection()}`;
 
     $('#show-cancelled').addEventListener('change', (e) => { showCancelled = e.target.checked; renderEvent(); });
+    document.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => {
+      const el = document.getElementById(b.dataset.jump);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
     const allChanges = $('#all-changes');
     if (allChanges) allChanges.addEventListener('click', () => { showAllChanges = true; renderEvent(); });
     $('#copy-link').addEventListener('click', () => {
@@ -1155,7 +1161,7 @@
     const iss = ev.issuer || {};
 
     app.innerHTML = `
-      <p class="small"><a href="#/akce/${esc(ev.id)}">← ${esc(ev.name)}</a></p>
+      <p class="back small"><a href="#/akce/${esc(ev.id)}">← ${esc(ev.name)}</a></p>
       <div class="page-head"><h1>Platby a doklady</h1>
         <div class="actions">
           <button type="button" class="button" id="pay-blank">Prázdné doklady k tisku</button>
@@ -1165,8 +1171,8 @@
       ${pay.items.length ? '' : '<p class="notice-inline">Akce nemá žádné placené položky – nastavte startovné u turnajů nebo ceny u doplňujících otázek.</p>'}
       <div class="stats">
         <div><span class="muted small">K úhradě celkem</span><strong>${esc(R.formatMoney(sum(pay.items)))}</strong></div>
-        <div><span class="muted small">Zaplaceno</span><strong>${esc(R.formatMoney(sum(allPaid)))}</strong></div>
-        <div><span class="muted small">Zbývá</span><strong>${esc(R.formatMoney(sum(pay.items) - sum(allPaid)))}</strong></div>
+        <div class="${sum(allPaid) > 0 ? 'stat-ok' : ''}"><span class="muted small">Zaplaceno</span><strong>${esc(R.formatMoney(sum(allPaid)))}</strong></div>
+        <div class="${sum(pay.items) - sum(allPaid) > 0 ? 'stat-warn' : 'stat-ok'}"><span class="muted small">Zbývá</span><strong>${esc(R.formatMoney(sum(pay.items) - sum(allPaid)))}</strong></div>
       </div>
 
       <section class="card">
@@ -1510,6 +1516,11 @@
     if (!getToken()) { showLogin(); return; }
     const h = location.hash.replace(/^#/, '') || '/';
     if (dialog.open) dialog.close();
+    document.querySelectorAll('#nav a[href^="#"]').forEach((a) => {
+      const target = a.getAttribute('href').slice(1);
+      const on = target === '/' ? !h.startsWith('/spravci') : h.startsWith(target);
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
     document.body.classList.remove('print-receipts');
     try {
       if (!me && h !== '/') {

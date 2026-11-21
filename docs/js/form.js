@@ -467,6 +467,7 @@
     refreshFinder();
     $('#layout').classList.toggle('with-finder', !$('#finder-wrap').hidden);
     $$('#extras .extra').forEach((el) => { el.hidden = !el.dataset.modes.split(' ').includes(mode); });
+    $('#extras-title').hidden = !visibleExtras().length;
     $('#extras').dispatchEvent(new Event('change'));
     updateSubmitLabel();
     hideErrors();

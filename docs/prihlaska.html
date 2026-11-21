@@ -9,7 +9,7 @@
 <body>
   <main class="container form-page">
     <header class="hero">
-      <p class="links small"><a href="./">← Všechny akce</a></p>
+      <p class="back small"><a href="./">← Všechny akce</a></p>
       <h1 id="event-name">Přihláška na turnaj</h1>
       <p id="event-meta" class="muted"></p>
       <p id="event-intro"></p>
@@ -25,6 +25,7 @@
 
     <div class="form-layout" id="layout">
     <form id="form" class="card" novalidate hidden>
+      <h2 class="step-title"><span class="step-no">1</span> Kdo se přihlašuje</h2>
       <fieldset id="mode-switch" class="mode" hidden>
         <legend>Přihlašuji</legend>
         <label class="pill"><input type="radio" name="mode" value="individual" checked> hráče</label>
@@ -37,6 +38,7 @@
       </label>
 
       <section id="individual" data-mode="individual">
+        <h2 class="step-title"><span class="step-no">2</span> Hráči a turnaje</h2>
         <div id="players"></div>
         <div id="bulk" class="bulk" hidden></div>
         <div class="add-player">
@@ -46,6 +48,7 @@
       </section>
 
       <section id="team" data-mode="team" hidden>
+        <h2 class="step-title"><span class="step-no">2</span> Družstva</h2>
         <div id="teams"></div>
         <div class="add-player">
           <button type="button" class="button" id="add-team">+ Přidat další družstvo</button>
@@ -53,6 +56,7 @@
         </div>
       </section>
 
+      <h2 class="step-title" id="extras-title" hidden><span class="step-no">3</span> Doplňující údaje</h2>
       <div id="extras"></div>
       <div id="extras-total" class="extras-total" hidden></div>
 
