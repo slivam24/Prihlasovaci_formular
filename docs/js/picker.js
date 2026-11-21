@@ -220,6 +220,10 @@
       },
       getValue,
       validate,
+      setLabel(label) {
+        opts.label = label;
+        root.querySelector('.field-label').innerHTML = esc(label) + (required ? ' <span class="req">*</span>' : '');
+      },
       isEmpty() { return !selected && !toggle.checked; },
       onChange(fn) { listeners.push(fn); },
       reset() {

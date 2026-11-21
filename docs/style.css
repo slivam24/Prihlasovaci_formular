@@ -229,3 +229,16 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 .dialog-form > * + * { margin-top: 14px; }
 .dialog-form h2 { margin: 0; }
 .links button.link { padding: 0; }
+
+/* přihláška více hráčů (výprava) */
+.player-card { position: relative; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+.player-card + .player-card { margin-top: 14px; }
+.player-card .remove-player { position: absolute; top: 10px; right: 10px; }
+.player-card .tournaments { margin-top: 12px; }
+.add-player { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); }
+.bulk-label { font-weight: 600; font-size: 0.9rem; margin-right: 4px; }
+.chip { font: inherit; font-size: 0.875rem; border: 1px solid var(--accent); color: var(--accent); background: var(--card); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.done-player { margin: 8px 0; }

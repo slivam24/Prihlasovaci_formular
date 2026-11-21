@@ -1,4 +1,6 @@
-/* Přihláška na akci – stránka prihlaska.html?akce=<adresa akce>. */
+/* Přihláška na akci – stránka prihlaska.html?akce=<adresa akce>.
+ * Jednotlivci: jeden nebo více hráčů (výprava) v jedné přihlášce, každý se svými turnaji.
+ * Družstva: kapitán + hráči na šachovnicích. */
 (function () {
   'use strict';
 
@@ -13,13 +15,14 @@
   let db = null;
   let dbFailed = false;
   let mode = 'individual';
-  let playerPicker = null;
+  let cards = []; // hráči v režimu jednotlivců: { el, picker }
   let teamPickers = [];
 
   const individualTournaments = () => ev.tournaments.filter((t) => t.type !== 'team');
   const teamTournaments = () => ev.tournaments.filter((t) => t.type === 'team');
+  const tShort = (t) => t.short || t.name;
 
-  // ---------- vykreslení ----------
+  // ---------- hlavička ----------
 
   function renderHeader() {
     document.title = 'Přihláška – ' + ev.name;
@@ -36,23 +39,128 @@
     }
   }
 
-  function renderTournaments() {
-    $('#tournament-list').innerHTML = individualTournaments().map((t) => `
-      <label class="tournament" data-id="${esc(t.id)}">
-        <input type="checkbox" name="t" value="${esc(t.id)}">
-        <span class="t-body">
-          <span class="t-name">${esc(R.tournamentLabel(t))}</span>
-          ${R.ruleText(t) ? `<span class="t-rule">${esc(R.ruleText(t))}</span>` : ''}
-          <span class="t-block" hidden></span>
-          <span class="t-warn" hidden></span>
-        </span>
-      </label>`).join('');
-    $$('#tournament-list input').forEach((i) => i.addEventListener('change', updateEligibility));
-    // jen jeden turnaj = rovnou zaškrtnout
-    if (individualTournaments().length === 1) $('#tournament-list input').checked = true;
+  // ---------- hráči (jednotlivci, i celá výprava) ----------
 
+  function attachPickerDb(picker) {
+    if (db) picker.setDB(db);
+    else if (dbFailed) picker.setUnavailable();
+  }
+
+  function checkedIds(card) {
+    return $$('.tournament input:checked', card.el).map((i) => i.value);
+  }
+
+  function addPlayerCard(copyFrom) {
+    const el = document.createElement('div');
+    el.className = 'player-card';
+    el.innerHTML = `
+      <button type="button" class="link danger remove-player">Odebrat</button>
+      <div class="pc-picker"></div>
+      <fieldset class="tournaments">
+        <legend>Turnaje <span class="req">*</span></legend>
+        ${individualTournaments().map((t) => `
+          <label class="tournament" data-id="${esc(t.id)}">
+            <input type="checkbox" value="${esc(t.id)}">
+            <span class="t-body">
+              <span class="t-name">${esc(R.tournamentLabel(t))}</span>
+              ${R.ruleText(t) ? `<span class="t-rule">${esc(R.ruleText(t))}</span>` : ''}
+              <span class="t-block" hidden></span>
+              <span class="t-warn" hidden></span>
+            </span>
+          </label>`).join('')}
+      </fieldset>`;
+    $('#players').appendChild(el);
+
+    const picker = window.createPicker($('.pc-picker', el), { label: 'Hráč', required: true });
+    attachPickerDb(picker);
+    const card = { el, picker };
+    cards.push(card);
+
+    const prev = copyFrom ? checkedIds(copyFrom) : [];
+    const only = individualTournaments().length === 1;
+    $$('.tournament input', el).forEach((i) => {
+      i.checked = only || prev.includes(i.value);
+      i.addEventListener('change', () => { updateCard(card); updateBulk(); });
+    });
+    picker.onChange(() => { updateCard(card); updateBulk(); });
+    $('.remove-player', el).addEventListener('click', () => removeCard(card));
+
+    renumber();
+    updateCard(card);
+    updateBulk();
+    return card;
+  }
+
+  function removeCard(card) {
+    if (cards.length < 2) return;
+    const p = card.picker.getValue();
+    if (p && !confirm(`Odebrat z přihlášky hráče ${p.name}?`)) return;
+    card.el.remove();
+    cards = cards.filter((c) => c !== card);
+    renumber();
+    updateBulk();
+  }
+
+  function renumber() {
+    const multi = cards.length > 1;
+    cards.forEach((c, i) => {
+      c.picker.setLabel(multi ? `${i + 1}. hráč` : 'Hráč');
+      $('.remove-player', c.el).hidden = !multi;
+    });
+    updateSubmitLabel();
+  }
+
+  function updateCard(card) {
+    const p = card.picker.getValue();
+    individualTournaments().forEach((t) => {
+      const label = $(`.tournament[data-id="${CSS.escape(t.id)}"]`, card.el);
+      const input = label.querySelector('input');
+      const block = R.eligibility(t, p);
+      input.disabled = !!block;
+      if (block) input.checked = false;
+      label.classList.toggle('disabled', !!block);
+      const b = label.querySelector('.t-block');
+      b.hidden = !block;
+      b.textContent = block ? `Nelze vybrat – turnaj je ${block}.` : '';
+      const warn = input.checked ? R.ratingWarning(t, p) : '';
+      const w = label.querySelector('.t-warn');
+      w.hidden = !warn;
+      w.textContent = warn;
+    });
+  }
+
+  /** Hromadné zaškrtnutí turnaje všem hráčům (jen tam, kam ročníkem patří). */
+  function updateBulk() {
+    const box = $('#bulk');
+    const tours = individualTournaments();
+    box.hidden = cards.length < 2 || tours.length < 2;
+    if (box.hidden) return;
+    box.innerHTML = '<span class="bulk-label">Zaškrtnout všem hráčům:</span>' + tours.map((t) => {
+      const inputs = cards.map((c) => $(`.tournament[data-id="${CSS.escape(t.id)}"] input`, c.el)).filter((i) => !i.disabled);
+      const all = inputs.length > 0 && inputs.every((i) => i.checked);
+      return `<button type="button" class="chip" data-bulk="${esc(t.id)}" aria-pressed="${all}" ${inputs.length ? '' : 'disabled'}>${all ? '✓ ' : ''}${esc(tShort(t))}</button>`;
+    }).join('');
+    $$('[data-bulk]', box).forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.bulk;
+      const inputs = cards.map((c) => $(`.tournament[data-id="${CSS.escape(id)}"] input`, c.el)).filter((i) => !i.disabled);
+      const check = !inputs.every((i) => i.checked);
+      inputs.forEach((i) => { i.checked = check; });
+      cards.forEach(updateCard);
+      updateBulk();
+    }));
+  }
+
+  function updateSubmitLabel() {
+    const btn = $('#submit');
+    if (mode === 'team') btn.textContent = 'Odeslat přihlášku družstva';
+    else if (cards.length > 1) btn.textContent = `Odeslat přihlášku (${cards.length} hráčů)`;
+    else btn.textContent = 'Odeslat přihlášku';
+  }
+
+  // ---------- družstva ----------
+
+  function renderTeamSection() {
     const teams = teamTournaments();
-    $('#individual').dataset.available = individualTournaments().length ? '1' : '';
     if (!teams.length) return;
     $('#mode-switch').hidden = !individualTournaments().length;
     if (!individualTournaments().length) form.querySelector('[name="mode"][value="team"]').checked = true;
@@ -92,11 +200,12 @@
         : `${i + 1}. šachovnice`;
       const picker = window.createPicker(el, { label, required: !isReserve });
       picker.reserve = isReserve;
-      if (db) picker.setDB(db);
-      else if (dbFailed) picker.setUnavailable();
+      attachPickerDb(picker);
       teamPickers.push(picker);
     }
   }
+
+  // ---------- doplňující otázky a režim ----------
 
   function renderExtras() {
     $('#extras').innerHTML = (ev.extras || []).map((x) => {
@@ -129,27 +238,8 @@
     $('#individual').hidden = mode !== 'individual';
     $('#team').hidden = mode !== 'team';
     $$('#extras .extra').forEach((el) => { el.hidden = !el.dataset.modes.split(' ').includes(mode); });
-    $('#submit').textContent = mode === 'team' ? 'Odeslat přihlášku družstva' : 'Odeslat přihlášku';
+    updateSubmitLabel();
     hideErrors();
-  }
-
-  function updateEligibility() {
-    const p = playerPicker.getValue();
-    individualTournaments().forEach((t) => {
-      const label = $(`.tournament[data-id="${CSS.escape(t.id)}"]`);
-      const input = label.querySelector('input');
-      const block = R.eligibility(t, p);
-      input.disabled = !!block;
-      if (block) input.checked = false;
-      label.classList.toggle('disabled', !!block);
-      const b = label.querySelector('.t-block');
-      b.hidden = !block;
-      b.textContent = block ? `Nelze vybrat – turnaj je ${block}.` : '';
-      const warn = input.checked ? R.ratingWarning(t, p) : '';
-      const w = label.querySelector('.t-warn');
-      w.hidden = !warn;
-      w.textContent = warn;
-    });
   }
 
   // ---------- validace a odeslání ----------
@@ -170,18 +260,24 @@
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.value.trim())) errors.push('Vyplňte platný e-mail.');
 
     if (mode === 'individual') {
-      const err = playerPicker.validate(year);
-      if (err) errors.push(err);
-      const chosen = $$('#tournament-list input:checked');
-      if (!chosen.length) errors.push('Vyberte alespoň jeden turnaj.');
-      const p = playerPicker.getValue();
-      if (p) {
-        chosen.forEach((i) => {
-          const t = individualTournaments().find((x) => x.id === i.value);
+      const seen = [];
+      cards.forEach((c) => {
+        const err = c.picker.validate(year);
+        if (err) {
+          errors.push(cards.length > 1 ? err.replace(/\.$/, '') + ', nebo hráče z přihlášky odeberte.' : err);
+          return;
+        }
+        const p = c.picker.getValue();
+        const ids = checkedIds(c);
+        if (!ids.length) errors.push(`${p.name}: vyberte alespoň jeden turnaj.`);
+        ids.forEach((id) => {
+          const t = individualTournaments().find((x) => x.id === id);
           const block = R.eligibility(t, p);
-          if (block) errors.push(`Turnaj „${t.short || t.name}“ je ${block}.`);
+          if (block) errors.push(`${p.name}: turnaj „${tShort(t)}“ je ${block}.`);
         });
-      }
+        if (seen.some((s) => R.samePlayer(s, p))) errors.push(`${p.name} je v přihlášce uveden(a) dvakrát.`);
+        seen.push(p);
+      });
     } else {
       const t = currentTeamTournament();
       if (!form.teamName.value.trim()) errors.push('Vyplňte název družstva.');
@@ -215,8 +311,7 @@
   function collect() {
     const base = { slug: ev.slug, mode, email: form.email.value.trim(), extras: collectExtras(), web: form.web.value };
     if (mode === 'individual') {
-      base.player = playerPicker.getValue();
-      base.tournaments = $$('#tournament-list input:checked').map((i) => i.value);
+      base.players = cards.map((c) => ({ player: c.picker.getValue(), tournaments: checkedIds(c) }));
     } else {
       base.team = {
         tournamentId: currentTeamTournament().id,
@@ -238,7 +333,8 @@
       const players = payload.team.players.filter(Boolean).map((p) => esc(p.name)).join(', ');
       what = `<p>Družstvo <strong>${esc(payload.team.name)}</strong> (${players})<br>${esc(tName(payload.team.tournamentId))}</p>`;
     } else {
-      what = `<p><strong>${esc(payload.player.name)}</strong></p><ul>${payload.tournaments.map((id) => `<li>${esc(tName(id))}</li>`).join('')}</ul>`;
+      what = payload.players.map((e) => `<p class="done-player"><strong>${esc(e.player.name)}</strong><br>
+        <span class="small">${e.tournaments.map((id) => esc(tName(id))).join('<br>')}</span></p>`).join('');
     }
     const done = $('#done');
     done.innerHTML = `
@@ -246,7 +342,7 @@
       ${what}
       <p class="muted">Číslo přihlášky: <strong>${esc(res.id || '')}</strong>. Potvrzení jsme poslali na ${esc(payload.email)}.</p>
       <p class="actions">
-        <button type="button" class="primary" id="another">Přihlásit dalšího ${payload.mode === 'team' ? 'účastníka' : 'hráče'}</button>
+        <button type="button" class="primary" id="another">${payload.mode === 'team' ? 'Přihlásit další družstvo' : 'Přihlásit další hráče'}</button>
         <a class="button" href="seznam.html?akce=${encodeURIComponent(ev.slug)}">Seznam přihlášených</a>
       </p>`;
     done.hidden = false;
@@ -256,7 +352,7 @@
       resetForm();
       done.hidden = true;
       form.hidden = false;
-      playerPicker.focus();
+      if (cards[0]) cards[0].picker.focus();
     });
   }
 
@@ -267,11 +363,11 @@
     form.email.value = email;
     const radio = form.querySelector(`[name="mode"][value="${keepMode}"]`);
     if (radio) radio.checked = true;
-    playerPicker.reset();
-    if (individualTournaments().length === 1) $('#tournament-list input').checked = true;
+    $('#players').innerHTML = '';
+    cards = [];
+    if (individualTournaments().length) addPlayerCard(null);
     if (teamTournaments().length) renderTeamPlayers();
     applyMode();
-    updateEligibility();
   }
 
   async function onSubmit(e) {
@@ -302,16 +398,14 @@
       const res = await fetch('data/players.json');
       if (!res.ok) throw new Error(res.status);
       db = new window.Players.PlayerDB(await res.json());
-      playerPicker.setDB(db);
-      teamPickers.forEach((pk) => pk.setDB(db));
       const when = db.generated ? new Date(db.generated).toLocaleDateString('cs-CZ') : '';
       $('#db-info').textContent = `Našeptávač: listina LOK (${db.size.toLocaleString('cs-CZ')} hráčů${when ? ', načteno ' + when : ''}).`;
     } catch (err) {
       dbFailed = true;
-      playerPicker.setUnavailable();
-      teamPickers.forEach((pk) => pk.setUnavailable());
       $('#db-info').textContent = 'Seznam hráčů se nepodařilo načíst, údaje prosím vyplňte ručně.';
     }
+    cards.forEach((c) => attachPickerDb(c.picker));
+    teamPickers.forEach(attachPickerDb);
   }
 
   async function init() {
@@ -331,9 +425,13 @@
       $('#closed').hidden = false;
       return;
     }
-    playerPicker = window.createPicker($('#player-picker'), { label: 'Hráč', required: true });
-    playerPicker.onChange(updateEligibility);
-    renderTournaments();
+    if (individualTournaments().length) addPlayerCard(null);
+    $('#add-player').addEventListener('click', () => {
+      const card = addPlayerCard(cards[cards.length - 1]);
+      card.picker.focus();
+      card.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    renderTeamSection();
     renderExtras();
     $$('[name="mode"]', form).forEach((r) => r.addEventListener('change', applyMode));
     form.addEventListener('submit', onSubmit);

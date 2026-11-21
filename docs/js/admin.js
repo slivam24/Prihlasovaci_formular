@@ -531,9 +531,13 @@
 
   function extrasSummary() {
     const ev = current.event;
-    const apps = {};
-    current.registrations.filter((r) => r.status !== 'zrušeno').forEach((r) => { if (!apps[r.applicationId]) apps[r.applicationId] = r; });
-    const list = Object.keys(apps).map((k) => apps[k]);
+    // počítají se osoby (hráč může mít v přihlášce víc turnajů = víc řádků; výprava = víc hráčů)
+    const persons = {};
+    current.registrations.filter((r) => r.status !== 'zrušeno').forEach((r) => {
+      const key = `${r.applicationId}|${R.norm(r.surname + ' ' + r.firstName)}|${r.year}`;
+      if (!persons[key]) persons[key] = r;
+    });
+    const list = Object.keys(persons).map((k) => persons[k]);
     const parts = (ev.extras || []).filter((x) => x.type === 'checkboxes' || x.type === 'select').map((x) => {
       const counts = x.options.map((o) => {
         const who = list.filter((r) => {
@@ -541,12 +545,12 @@
           try { d = JSON.parse(r.extras || '{}'); } catch (e) { /* nic */ }
           const v = d[x.id];
           return Array.isArray(v) ? v.includes(o) : v === o;
-        }).map((r) => (r.mode === 'team' ? r.team : `${r.surname} ${r.firstName}`));
+        }).map((r) => `${r.surname} ${r.firstName}`);
         return `<li><strong>${esc(o)}: ${who.length}</strong>${who.length ? ` <span class="small muted">(${esc(who.join(', '))})</span>` : ''}</li>`;
       }).join('');
       return `<div><h3>${esc(x.label)}</h3><ul>${counts}</ul></div>`;
     });
-    return parts.length ? `<section class="card"><h2>Souhrn doplňujících otázek</h2><div class="summary-grid">${parts.join('')}</div></section>` : '';
+    return parts.length ? `<section class="card"><h2>Souhrn doplňujících otázek <span class="small muted">(počty osob)</span></h2><div class="summary-grid">${parts.join('')}</div></section>` : '';
   }
 
   function renderEvent() {

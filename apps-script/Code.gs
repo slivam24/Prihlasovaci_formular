@@ -43,6 +43,7 @@ const TOURNAMENT_TYPES = ['individual', 'team'];
 const EXTRA_TYPES = ['checkboxes', 'select', 'text', 'textarea'];
 const ROLES = ['superadmin', 'organizer'];
 const CANCELLED = 'zrušeno';
+const MAX_GROUP_PLAYERS = 60;
 const YES = 'ANO';
 
 // =====================================================================
@@ -404,25 +405,43 @@ function processRegistration_(data, ev, existing, now, opts) {
   const row = (p, t, more) => Object.assign({ id: makeId_(now, 8) }, base, playerToRow_(p), { tournamentId: t.id }, more || {});
 
   if (mode === 'individual') {
-    const p = cleanPlayer_(data.player, year);
-    if (p.error) return fail(p.error);
-    const ids = Array.isArray(data.tournaments) ? data.tournaments.map(String) : [];
-    const tours = ev.tournaments.filter((t) => t.type === 'individual' && ids.indexOf(t.id) >= 0);
-    if (!tours.length) return fail('Vyberte alespoň jeden turnaj.');
-    for (const t of tours) {
-      const label = t.short || t.name;
-      const block = eligibility_(t, p);
-      if (block && !admin) return fail(`${fullName_(p)}: turnaj „${label}“ je ${block}.`);
-      const inTour = active.filter((r) => r.tournamentId === t.id);
-      if (inTour.some((r) => samePlayer_(rowToPlayer_(r), p))) {
-        return fail(`${fullName_(p)} je do turnaje „${label}“ už přihlášen(a).`);
+    // jeden hráč {player, tournaments}, nebo výprava {players: [{player, tournaments}, …]}
+    const entries = Array.isArray(data.players) ? data.players : [{ player: data.player, tournaments: data.tournaments }];
+    if (!entries.length) return fail('Přidejte alespoň jednoho hráče.');
+    if (entries.length > MAX_GROUP_PLAYERS) return fail(`Najednou lze přihlásit nejvýše ${MAX_GROUP_PLAYERS} hráčů.`);
+    const multi = entries.length > 1;
+    const rows = [];
+    const done = [];
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i] || {};
+      const p = cleanPlayer_(entry.player, year);
+      if (p.error) return fail((multi ? `${i + 1}. hráč: ` : '') + p.error);
+      if (done.some((d) => samePlayer_(d.p, p))) return fail(`${fullName_(p)} je v přihlášce uveden(a) dvakrát.`);
+      const ids = Array.isArray(entry.tournaments) ? entry.tournaments.map(String) : [];
+      const tours = ev.tournaments.filter((t) => t.type === 'individual' && ids.indexOf(t.id) >= 0);
+      if (!tours.length) return fail(multi ? `${fullName_(p)}: vyberte alespoň jeden turnaj.` : 'Vyberte alespoň jeden turnaj.');
+      for (const t of tours) {
+        const label = t.short || t.name;
+        const block = eligibility_(t, p);
+        if (block && !admin) return fail(`${fullName_(p)}: turnaj „${label}“ je ${block}.`);
+        const inTour = active.filter((r) => r.tournamentId === t.id);
+        if (inTour.some((r) => samePlayer_(rowToPlayer_(r), p))) {
+          return fail(`${fullName_(p)} je do turnaje „${label}“ už přihlášen(a).`);
+        }
+        const taken = inTour.length + rows.filter((r) => r.tournamentId === t.id).length;
+        if (t.capacity && taken >= t.capacity && !admin) {
+          return fail(`Turnaj „${label}“ je již naplněn` + (multi ? ` (volných míst: ${Math.max(0, t.capacity - inTour.length)}).` : '.'));
+        }
       }
-      if (t.capacity && inTour.length >= t.capacity && !admin) return fail(`Turnaj „${label}“ je již naplněn.`);
+      tours.forEach((t) => rows.push(row(p, t)));
+      done.push({ p, tours });
     }
     return {
-      ok: true, applicationId,
-      rows: tours.map((t) => row(p, t)),
-      summary: { players: [fullName_(p)], tournaments: tours.map(tourTitle_), extras },
+      ok: true, applicationId, rows,
+      summary: {
+        entries: done.map((d) => ({ name: fullName_(d.p), tournaments: d.tours.map(tourTitle_) })),
+        extras,
+      },
     };
   }
 
@@ -603,11 +622,16 @@ function sendConfirmation_(ev, email, result) {
   if (s.team) {
     lines.push(`Družstvo: ${s.team} (kapitán: ${s.captain})`);
     s.players.forEach((p) => lines.push('  ' + p));
+    lines.push('', 'Soutěž:');
+    s.tournaments.forEach((t) => lines.push('  • ' + t));
   } else {
-    lines.push(`Hráč: ${s.players[0]}`);
+    lines.push(s.entries.length > 1 ? `Přihlášení hráči (${s.entries.length}):` : 'Přihlášený hráč:');
+    s.entries.forEach((e) => {
+      lines.push('', '  ' + e.name);
+      e.tournaments.forEach((t) => lines.push('    • ' + t));
+    });
   }
-  lines.push('', 'Turnaje:');
-  s.tournaments.forEach((t) => lines.push('  • ' + t));
+  lines.push('');
   (ev.extras || []).forEach((x) => {
     const v = s.extras[x.id];
     const text = Array.isArray(v) ? v.join(', ') : v;

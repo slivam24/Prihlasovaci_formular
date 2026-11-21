@@ -151,3 +151,45 @@ test('veřejný seznam neobsahuje e-maily a zrušené', () => {
   assert.ok(!JSON.stringify(list).includes('tajny@'));
   assert.ok(!('admins' in list.event));
 });
+
+test('výprava: více hráčů v jedné přihlášce, každý se svými turnaji', () => {
+  const p = (id, year, surname) => ({ ...lokPlayer, id, year, surname: surname || 'Hráč' + id });
+  const r = register({
+    mode: 'individual', email: 'vedouci@klub.cz',
+    players: [
+      { player: p(1, 1990), tournaments: [T['Open rapid'], T['Blesk']] },
+      { player: p(2, 2015), tournaments: [T['Open rapid'], T['Mladší žáci']] },
+      { player: { ...manualPlayer }, tournaments: [T['Veteráni']] },
+    ],
+    extras: { doprava: ['sobota tam'] },
+  });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(r.rows.length, 5);
+  assert.equal(new Set(r.rows.map((x) => x.applicationId)).size, 1, 'jedna přihláška');
+  assert.ok(r.rows.every((x) => x.email === 'vedouci@klub.cz'));
+  assert.deepEqual(r.summary.entries.map((e) => e.tournaments.length), [2, 2, 1]);
+
+  // chyby jsou u konkrétního hráče
+  const bad = (players) => register({ mode: 'individual', email: 'v@k.cz', players });
+  assert.match(bad([{ player: p(1, 1990), tournaments: [T['Blesk']] }, { player: null, tournaments: [T['Blesk']] }]).error, /^2\. hráč:/);
+  assert.match(bad([{ player: p(1, 1990), tournaments: [T['Blesk']] }, { player: p(2, 1990, 'Bez'), tournaments: [] }]).error, /Bez Jan|Bez .*vyberte alespoň jeden turnaj/);
+  assert.match(bad([{ player: p(1, 1990), tournaments: [T['Blesk']] }, { player: p(1, 1990), tournaments: [T['Rapid'] || T['Open rapid']] }]).error, /dvakrát/);
+  assert.match(bad([{ player: p(1, 1990), tournaments: [T['Mladší žáci']] }]).error, /2014 a mladší/);
+  // duplicita proti už přihlášeným
+  assert.match(register({ mode: 'individual', email: 'v@k.cz', players: [{ player: p(1, 1990), tournaments: [T['Blesk']] }] }, r.rows).error, /už přihlášen/);
+});
+
+test('výprava: kapacita se počítá včetně hráčů z téže přihlášky', () => {
+  const ev2 = { ...event, tournaments: event.tournaments.map((t) => (t.id === T['Blesk'] ? { ...t, capacity: 2 } : t)) };
+  const p = (id) => ({ ...lokPlayer, id, year: 1990, surname: 'H' + id });
+  const res = run('processRegistration_(data, ev, [], now, {})', {
+    ev: ev2, now,
+    data: { mode: 'individual', email: 'v@k.cz', players: [1, 2, 3].map((id) => ({ player: p(id), tournaments: [T['Blesk']] })) },
+  });
+  assert.match(res.error, /naplněn.*volných míst: 2/);
+  const ok = run('processRegistration_(data, ev, [], now, {})', {
+    ev: ev2, now,
+    data: { mode: 'individual', email: 'v@k.cz', players: [1, 2].map((id) => ({ player: p(id), tournaments: [T['Blesk']] })) },
+  });
+  assert.equal(ok.ok, true, ok.error);
+});

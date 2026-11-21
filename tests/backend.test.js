@@ -151,3 +151,23 @@ test('vypršelé přihlášení', () => {
   const r = gas.post({ action: 'admin.events', idToken: fakeToken(OWNER, -10) });
   assert.equal(r.code, 'auth');
 });
+
+test('výprava přes API: jeden e-mail se všemi hráči', () => {
+  const { gas, admin } = setup();
+  const ev = admin('saveEvent', { event: {
+    name: 'Open 2027', dateFrom: '2027-06-01', status: 'otevreno',
+    tournaments: [{ name: 'Rapid', short: 'Rapid' }, { name: 'Blesk', short: 'Blesk' }],
+  } }).event;
+  const [rapid, blesk] = ev.tournaments;
+  const res = gas.post({ action: 'register', slug: ev.slug, mode: 'individual', email: 'vedouci@klub.cz', players: [
+    { player: player(1, 'Alfa', 2000), tournaments: [rapid.id, blesk.id] },
+    { player: player(2, 'Beta', 2001), tournaments: [blesk.id] },
+  ] });
+  assert.equal(res.ok, true, res.error);
+  assert.equal(gas.mails.length, 1, 'jeden potvrzovací e-mail pro celou výpravu');
+  assert.match(gas.mails[0].body, /Přihlášení hráči \(2\)/);
+  assert.match(gas.mails[0].body, /Alfa Jan[\s\S]*Rapid[\s\S]*Blesk[\s\S]*Beta Jan[\s\S]*Blesk/);
+  const list = gas.get({ action: 'list', slug: ev.slug });
+  assert.equal(list.tournaments[rapid.id].length, 1);
+  assert.equal(list.tournaments[blesk.id].length, 2);
+});

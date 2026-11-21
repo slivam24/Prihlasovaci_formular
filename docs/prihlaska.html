@@ -28,15 +28,16 @@
 
       <label class="block">E-mail <span class="req">*</span>
         <input type="email" name="email" autocomplete="email" required>
-        <span class="hint">Pošleme na něj potvrzení přihlášky.</span>
+        <span class="hint">Pošleme na něj potvrzení přihlášky. Přihlašujete-li víc hráčů najednou, uveďte e-mail vedoucího výpravy.</span>
       </label>
 
       <section id="individual" data-mode="individual">
-        <div id="player-picker"></div>
-        <fieldset class="tournaments">
-          <legend>Výběr turnajů <span class="req">*</span></legend>
-          <div id="tournament-list"></div>
-        </fieldset>
+        <div id="players"></div>
+        <div id="bulk" class="bulk" hidden></div>
+        <div class="add-player">
+          <button type="button" class="button" id="add-player">+ Přidat dalšího hráče</button>
+          <span class="hint">Celou výpravu z klubu přihlásíte najednou. Nový hráč převezme turnaje od předchozího, můžete je upravit.</span>
+        </div>
       </section>
 
       <section id="team" data-mode="team" hidden>
