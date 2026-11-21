@@ -1,13 +1,28 @@
 {
   "siteName": "Přihlášky na šachové turnaje",
-  "apiUrl": "",
-  "googleClientId": "",
+  "apiUrl": "https://script.google.com/macros/s/AKfycbwsAFCI0h_YJWMZ_2YJmDHbHk5EN55m-409wryhjA6I9NaIoHtFjmEZRCepph_snGgxpw/exec",
+  "googleClientId": "967727003047-8t8mdsk87rfpdk6k6q9n0n47kc56o752.apps.googleusercontent.com",
   "ageCategories": [
-    { "code": "U12", "maxAge": 12 },
-    { "code": "U15", "maxAge": 15 },
-    { "code": "U18", "maxAge": 18 },
-    { "code": "U20", "maxAge": 20 },
-    { "code": "S60", "minAge": 60 }
+    {
+      "code": "U12",
+      "maxAge": 12
+    },
+    {
+      "code": "U15",
+      "maxAge": 15
+    },
+    {
+      "code": "U18",
+      "maxAge": 18
+    },
+    {
+      "code": "U20",
+      "maxAge": 20
+    },
+    {
+      "code": "S60",
+      "minAge": 60
+    }
   ],
   "unregisteredCategory": "N"
 }
