@@ -8,6 +8,8 @@
  *   POST {action:'admin.*', idToken, ...}                 – administrace (Google přihlášení)
  *
  * Vlastnosti skriptu (menu Turnaje → Nastavení): GOOGLE_CLIENT_ID, SITE_URL.
+ * Volitelně BREVO_API_KEY a BREVO_SENDER – e-maily přes Brevo (300/den zdarma) místo Gmailu (100/den).
+ * Menu Turnaje → Zapnout zálohy a frontu e-mailů: denní záloha tabulky, odesílání fronty, anonymizace.
  */
 
 // =====================================================================
@@ -43,6 +45,10 @@ const SHEETS = {
   users: {
     name: 'Správci',
     cols: ['email', 'name', 'club', 'role', 'active', 'createdAt'],
+  },
+  mails: {
+    name: 'E-maily',
+    cols: ['id', 'createdAt', 'to', 'subject', 'body', 'name', 'replyTo', 'status', 'sentAt', 'error'],
   },
 };
 
@@ -272,6 +278,9 @@ function publicEvent_(ev) {
   ['id', 'slug', 'name', 'place', 'dateFrom', 'dateTo', 'deadline', 'status', 'infoUrl', 'intro', 'extras']
     .forEach((k) => { out[k] = ev[k]; });
   out.tournaments = ev.tournaments.map(stripRow_);
+  // správce osobních údajů (pořadatel) – pro stránku o zpracování osobních údajů
+  const iss = ev.issuer || {};
+  out.organizer = { name: iss.name || '', address: iss.address || '', ico: iss.ico || '', email: ev.contactEmail || '' };
   return out;
 }
 
@@ -485,14 +494,15 @@ function register_(body, adminUser) {
   }
   SpreadsheetApp.flush();
   const email = String(body.email || '').trim();
+  let mailDelayed = false;
   if (!adminUser && email) {
     try {
-      sendConfirmation_(ev, email, result);
+      mailDelayed = !sendConfirmation_(ev, email, result);
     } catch (err) {
-      console.error('Potvrzovací e-mail se nepodařilo odeslat', err);
+      console.error('Potvrzovací e-mail se nepodařilo připravit', err);
     }
   }
-  return { id: result.applicationId, editToken: result.editToken };
+  return { id: result.applicationId, editToken: result.editToken, mailDelayed };
 }
 
 /**
@@ -818,7 +828,7 @@ function sendConfirmation_(ev, email, result) {
   lines.push('', 'Pokud chcete přihlášku změnit nebo zrušit, odpovězte prosím na tento e-mail.');
   const opts = { to: email, subject: `Přihláška – ${ev.name}`, body: lines.join('\n'), name: ev.name };
   if (ev.contactEmail) opts.replyTo = ev.contactEmail;
-  MailApp.sendEmail(opts);
+  return sendMail_(opts);
 }
 
 // =====================================================================
@@ -1189,12 +1199,12 @@ function sendChangeEmails_(ev, rows, lines) {
         ['', `Číslo přihlášky: ${first.applicationId}`], url ? ['', 'Další změny:', url] : []).join('\n');
     const opts = { to: first.email, subject: `Změna přihlášky – ${ev.name}`, body, name: ev.name };
     if (ev.contactEmail) opts.replyTo = ev.contactEmail;
-    MailApp.sendEmail(opts);
+    sendMail_(opts);
   }
   if (ev.contactEmail) {
     const body = [`Přihláška č. ${first.applicationId} (${first.email || 'bez e-mailu'}) byla změněna přes odkaz z e-mailu:`, '']
       .concat(lines.map((l) => '  ' + l), ['', 'Aktuálně přihlášení:'], state).join('\n');
-    MailApp.sendEmail({ to: ev.contactEmail, subject: `Změna přihlášky č. ${first.applicationId} – ${ev.name}`, body, name: 'Přihlášky' });
+    sendMail_({ to: ev.contactEmail, subject: `Změna přihlášky č. ${first.applicationId} – ${ev.name}`, body, name: 'Přihlášky' });
   }
 }
 
@@ -1296,7 +1306,7 @@ const ADMIN_ACTIONS = {
     const events = loadEvents_().filter((e) => canEdit_(user, e))
       .sort((a, b) => String(b.dateFrom).localeCompare(String(a.dateFrom)))
       .map((e) => adminEventView_(e, regs.filter((r) => r.eventId === e.id)));
-    return { user, events };
+    return { user, events, system: systemStatus_(user) };
   },
 
   event(body, user) {
@@ -1305,7 +1315,7 @@ const ADMIN_ACTIONS = {
     const regs = table_('registrations').rows.filter((r) => r.eventId === ev.id);
     const changes = table_('changes').rows.filter((c) => c.eventId === ev.id).map(stripRow_);
     const receipts = table_('receipts').rows.filter((r) => r.eventId === ev.id).map(receiptView_);
-    return { event: adminEventView_(ev, regs), registrations: regs.map(stripRow_), changes, receipts };
+    return { event: adminEventView_(ev, regs), registrations: regs.map(stripRow_), changes, receipts, system: systemStatus_(user) };
   },
 
   saveEvent(body, user) {
@@ -1589,12 +1599,286 @@ function makeId_(now, len) {
 }
 
 // =====================================================================
+// E-maily: denní limit, fronta neodeslaných, volitelně Brevo
+// =====================================================================
+// Gmail účet smí ze skriptu poslat jen ~100 e-mailů denně (Workspace 1500). Co se nevejde,
+// uloží se do listu „E-maily“ a odešle se automaticky, jakmile se limit obnoví (spouštěč každou hodinu).
+
+const MAIL_QUEUED = 'čeká';
+const MAIL_SENT = 'odesláno';
+const MAIL_LOW = 20;
+
+function mailProvider_() {
+  return PropertiesService.getScriptProperties().getProperty('BREVO_API_KEY') ? 'brevo' : 'gmail';
+}
+
+function mailRecipients_(m) {
+  return String(m.to || '').split(',').filter((x) => x.trim()).length || 1;
+}
+
+/** Odešle hned, nebo vyhodí chybu (limit, výpadek služby). */
+function deliverMail_(m) {
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('BREVO_API_KEY');
+  if (key) {
+    const payload = {
+      sender: { name: m.name || 'Přihlášky', email: props.getProperty('BREVO_SENDER') || '' },
+      to: String(m.to).split(',').map((x) => ({ email: x.trim() })).filter((x) => x.email),
+      subject: m.subject,
+      textContent: m.body,
+    };
+    if (m.replyTo) payload.replyTo = { email: m.replyTo };
+    const res = UrlFetchApp.fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'post', contentType: 'application/json', headers: { 'api-key': key, accept: 'application/json' },
+      payload: JSON.stringify(payload), muteHttpExceptions: true,
+    });
+    const code = res.getResponseCode();
+    if (code < 200 || code >= 300) throw new Error(`Brevo ${code}: ${String(res.getContentText()).slice(0, 200)}`);
+    return;
+  }
+  if (MailApp.getRemainingDailyQuota() < mailRecipients_(m)) throw userError_('Denní limit e-mailů je vyčerpaný.', 'mail_quota');
+  MailApp.sendEmail(m);
+}
+
+/** Odešle e-mail; když to nejde, uloží ho do fronty. Vrací true, pokud odešel hned. */
+function sendMail_(m) {
+  const pending = table_('mails').rows.some((r) => r.status === MAIL_QUEUED);
+  if (!pending) {
+    try {
+      deliverMail_(m);
+      return true;
+    } catch (err) {
+      console.warn('E-mail jde do fronty: ' + (err.message || err));
+      return queueMail_(m, err);
+    }
+  }
+  return queueMail_(m, null); // starší e-maily mají přednost
+}
+
+function queueMail_(m, err) {
+  insert_('mails', [{
+    id: makeId_(new Date(), 8), createdAt: new Date().toISOString(), to: m.to, subject: m.subject, body: m.body,
+    name: m.name || '', replyTo: m.replyTo || '', status: MAIL_QUEUED, sentAt: '',
+    error: err ? String(err.message || err).slice(0, 300) : '',
+  }]);
+  return false;
+}
+
+/** Odešle čekající e-maily, dokud to limit dovolí. Vrací počet odeslaných. */
+function processMailQueue_() {
+  const queue = table_('mails').rows.filter((r) => r.status === MAIL_QUEUED)
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  let sent = 0;
+  for (const r of queue) {
+    try {
+      const m = { to: r.to, subject: r.subject, body: r.body, name: r.name || undefined };
+      if (r.replyTo) m.replyTo = r.replyTo;
+      deliverMail_(m);
+    } catch (err) {
+      r.error = String(err.message || err).slice(0, 300);
+      update_('mails', r);
+      if (err.code === 'mail_quota') break;
+      continue;
+    }
+    r.status = MAIL_SENT;
+    r.sentAt = new Date().toISOString();
+    r.error = '';
+    update_('mails', r);
+    sent++;
+  }
+  return sent;
+}
+
+function systemStatus_(user) {
+  const out = { mail: { provider: mailProvider_(), queued: 0, remaining: null } };
+  try {
+    out.mail.queued = table_('mails').rows.filter((r) => r.status === MAIL_QUEUED).length;
+    if (out.mail.provider === 'gmail') out.mail.remaining = MailApp.getRemainingDailyQuota();
+  } catch (e) { /* bez oprávnění */ }
+  if (user && user.role === 'superadmin') {
+    try {
+      out.jobs = jobsInstalled_();
+      out.lastBackup = PropertiesService.getScriptProperties().getProperty('LAST_BACKUP') || '';
+    } catch (e) { out.jobs = false; }
+  }
+  return out;
+}
+
+// =====================================================================
+// Zálohy tabulky, anonymizace a automatické spouštěče
+// =====================================================================
+// Záloha = kopie celé tabulky do složky „Přihlášky – zálohy“ na Disku, jen když se od poslední zálohy
+// něco změnilo. Ponechá se posledních 14 záloh a jedna za každý z posledních 12 měsíců, starší jdou do koše.
+
+const BACKUP_FOLDER_NAME = 'Přihlášky – zálohy';
+const BACKUP_KEEP_RECENT = 14;
+const BACKUP_KEEP_MONTHS = 12;
+const ANONYMIZE_AFTER_MONTHS = 12;
+const JOB_HANDLERS = ['hourlyJobs', 'dailyJobs'];
+
+function hourlyJobs() {
+  processMailQueue_();
+}
+
+function dailyJobs() {
+  try { backupSpreadsheet_(false); } catch (e) { console.error('Záloha selhala', e); }
+  try { anonymizeOldApplications_(new Date()); } catch (e) { console.error('Anonymizace selhala', e); }
+  processMailQueue_();
+}
+
+function jobsInstalled_() {
+  const names = ScriptApp.getProjectTriggers().map((t) => t.getHandlerFunction());
+  return JOB_HANDLERS.every((h) => names.indexOf(h) >= 0);
+}
+
+function installJobs_() {
+  ScriptApp.getProjectTriggers().filter((t) => JOB_HANDLERS.indexOf(t.getHandlerFunction()) >= 0)
+    .forEach((t) => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('hourlyJobs').timeBased().everyHours(1).create();
+  ScriptApp.newTrigger('dailyJobs').timeBased().everyDays(1).atHour(3).create();
+}
+
+function backupFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('BACKUP_FOLDER_ID');
+  if (id) {
+    try {
+      const f = DriveApp.getFolderById(id);
+      if (!f.isTrashed()) return f;
+    } catch (e) { /* složka smazaná – založíme novou */ }
+  }
+  const f = DriveApp.createFolder(BACKUP_FOLDER_NAME);
+  props.setProperty('BACKUP_FOLDER_ID', f.getId());
+  return f;
+}
+
+/** Vytvoří zálohu (když se tabulka od poslední zálohy změnila, nebo force) a promaže staré. */
+function backupSpreadsheet_(force) {
+  const props = PropertiesService.getScriptProperties();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const file = DriveApp.getFileById(ss.getId());
+  const last = props.getProperty('LAST_BACKUP');
+  if (!force && last && file.getLastUpdated().getTime() <= new Date(last).getTime()) return null;
+  const folder = backupFolder_();
+  const tz = Session.getScriptTimeZone();
+  const stamp = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH-mm');
+  const copy = file.makeCopy(`${ss.getName()} – záloha ${stamp}`, folder);
+  props.setProperty('LAST_BACKUP', new Date().toISOString());
+  pruneBackups_(folder, new Date());
+  return copy.getName();
+}
+
+/** Které zálohy smazat: ponechá posledních N a nejstarší zálohu z každého z posledních M měsíců. */
+function backupsToDelete_(names, now, keepRecent, keepMonths) {
+  const dated = names.map((n) => {
+    const m = String(n).match(/záloha (\d{4})-(\d{2})-(\d{2})/);
+    return m ? { name: n, key: n.slice(n.indexOf('záloha')), month: m[1] + '-' + m[2] } : null;
+  }).filter(Boolean).sort((a, b) => b.key.localeCompare(a.key));
+  const keep = {};
+  dated.slice(0, keepRecent).forEach((d) => { keep[d.name] = true; });
+  const months = [];
+  for (let i = 0; i < keepMonths; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  months.forEach((mo) => {
+    const inMonth = dated.filter((d) => d.month === mo);
+    if (inMonth.length) keep[inMonth[inMonth.length - 1].name] = true;
+  });
+  return dated.filter((d) => !keep[d.name]).map((d) => d.name);
+}
+
+function pruneBackups_(folder, now) {
+  const files = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) files.push(it.next());
+  const del = backupsToDelete_(files.map((f) => f.getName()), now, BACKUP_KEEP_RECENT, BACKUP_KEEP_MONTHS);
+  files.filter((f) => del.indexOf(f.getName()) >= 0).forEach((f) => f.setTrashed(true));
+}
+
+/**
+ * Ochrana osobních údajů: 12 měsíců po skončení akce smaže kontaktní e-maily, odkazy pro změnu
+ * a volné texty (poznámky, sdělení). Jméno, ročník, klub a turnaj zůstávají (startovní listina, výsledky),
+ * pokladní doklady se nemění (účetní záznam). Vrací počet upravených řádků.
+ */
+function anonymizeOldApplications_(now) {
+  const limit = new Date(now.getFullYear(), now.getMonth() - ANONYMIZE_AFTER_MONTHS, now.getDate());
+  const limitStr = Utilities.formatDate(limit, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const old = {};
+  loadEvents_().forEach((ev) => {
+    const end = ev.dateTo || ev.dateFrom;
+    if (end && end < limitStr) old[ev.id] = ev;
+  });
+  if (!Object.keys(old).length) return 0;
+  const admins = {};
+  table_('users').rows.forEach((u) => { admins[String(u.email).toLowerCase()] = true; });
+  let n = 0;
+  table_('registrations').rows.forEach((r) => {
+    const ev = old[r.eventId];
+    if (!ev || (!r.email && !r.editToken && !r.orgNote && !hasFreeText_(ev, r))) return;
+    r.email = '';
+    r.editToken = '';
+    r.orgNote = '';
+    r.extras = JSON.stringify(stripFreeText_(ev, parseJson_(r.extras, {})));
+    if (r.updatedBy && !admins[String(r.updatedBy).toLowerCase()]) r.updatedBy = '';
+    update_('registrations', r);
+    n++;
+  });
+  table_('changes').rows.forEach((c) => {
+    if (!old[c.eventId] || !c.by || admins[String(c.by).toLowerCase()]) return;
+    c.by = '';
+    update_('changes', c);
+  });
+  table_('mails').rows.forEach((m) => {
+    if (m.status === MAIL_SENT && m.sentAt && String(m.sentAt).slice(0, 10) < limitStr) {
+      m.to = ''; m.body = ''; m.replyTo = '';
+      update_('mails', m);
+    }
+  });
+  return n;
+}
+
+function freeTextIds_(ev) {
+  return (ev.extras || []).filter((x) => x.type === 'text' || x.type === 'textarea').map((x) => x.id);
+}
+
+function hasFreeText_(ev, r) {
+  const v = parseJson_(r.extras, {});
+  return freeTextIds_(ev).some((id) => v[id]);
+}
+
+function stripFreeText_(ev, values) {
+  const out = Object.assign({}, values);
+  freeTextIds_(ev).forEach((id) => { delete out[id]; });
+  return out;
+}
+
+function enableJobs() {
+  const ui = SpreadsheetApp.getUi();
+  installJobs_();
+  const name = backupSpreadsheet_(true);
+  const sent = processMailQueue_();
+  ui.alert('Zapnuto.\n\n• Záloha tabulky se dělá každou noc (jen když se něco změnilo) do složky „' + BACKUP_FOLDER_NAME +
+    '“ na Disku. Ponechá se posledních ' + BACKUP_KEEP_RECENT + ' záloh a jedna za každý měsíc, starší jdou do koše.\n' +
+    '• E-maily, které se kvůli dennímu limitu neodeslaly, se odešlou automaticky (kontrola každou hodinu).\n' +
+    '• U akcí starších než ' + ANONYMIZE_AFTER_MONTHS + ' měsíců se mažou e-maily a poznámky přihlášených.\n\n' +
+    'První záloha: ' + name + (sent ? '\nOdeslané e-maily z fronty: ' + sent : ''));
+}
+
+function backupNow() {
+  const name = backupSpreadsheet_(true);
+  SpreadsheetApp.getUi().alert('Záloha vytvořena: ' + name);
+}
+
+// =====================================================================
 // Menu v tabulce (nastavení)
 // =====================================================================
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Turnaje')
     .addItem('Nastavení', 'setup')
+    .addItem('Zapnout zálohy a frontu e-mailů', 'enableJobs')
+    .addItem('Zálohovat teď', 'backupNow')
     .addItem('Založit ukázkovou akci (Chlumec 2026)', 'createSampleEvent')
     .addToUi();
 }
