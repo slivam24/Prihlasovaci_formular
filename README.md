@@ -78,8 +78,26 @@ hráč / pořadatel ──► web na GitHub Pages ◄─────────
 6. Do `docs/config.json` vyplňte `"apiUrl"` (adresa `/exec`) a `"googleClientId"` a commitněte do `main`.
 7. Volitelně: **Turnaje → Založit ukázkovou akci (Chlumec 2026)**.
 
-> Po každé změně `Code.gs`: **Nasadit → Spravovat nasazení → Upravit → Verze: Nová verze**.
-> Adresa `/exec` zůstane stejná.
+> Po každé změně `Code.gs` je potřeba nová verze nasazení. Ručně: **Implementovat → Spravovat implementace →
+> Upravit → Verze: Nová verze** (adresa `/exec` zůstane stejná). Automaticky: viz další oddíl.
+
+### 4. Automatické nasazení backendu (volitelné)
+Workflow `.github/workflows/apps-script.yml` po každé změně v `apps-script/` nahraje kód do Apps Scriptu
+(nástrojem [clasp](https://github.com/google/clasp)) a aktualizuje stávající nasazení. Jednorázové nastavení:
+
+1. Na https://script.google.com/home/usersettings zapněte **Google Apps Script API**.
+2. Otevřete https://shell.cloud.google.com a spusťte `npx @google/clasp@2.4.2 login --no-localhost`.
+   Otevřete vypsaný odkaz, přihlaste se a povolte přístup. Prohlížeč pak skončí na nefunkční stránce
+   `localhost…` – celou adresu z adresního řádku zkopírujte a vložte zpět do Cloud Shellu.
+3. Příkazem `cat ~/.clasprc.json` vypište přihlašovací údaje a celý výstup zkopírujte.
+4. GitHub → **Settings → Secrets and variables → Actions**:
+   - záložka *Secrets* → **New repository secret**: název `CLASPRC_JSON`, hodnota = zkopírovaný obsah,
+   - záložka *Variables* → **New repository variable**: název `SCRIPT_ID`, hodnota = ID skriptu
+     (Apps Script → Nastavení projektu → ID skriptu).
+5. **Actions → Backend (Apps Script) → Run workflow** – ověří, že nasazení funguje.
+
+ID nasazení se bere z `apiUrl` v `docs/config.json`. Přihlašovací údaje clasp dávají přístup ke všem
+Apps Script projektům účtu – uchovávejte je jen v GitHub Secrets.
 
 ### Přidání pořadatele z jiného klubu
 V administraci otevřete **Správci → Přidat správce** a zadejte jeho Google účet s rolí *pořadatel*.

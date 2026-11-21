@@ -2,3 +2,5 @@
 docs/data/players.json
 __pycache__/
 node_modules/
+.clasp.json
+.clasprc.json
