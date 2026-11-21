@@ -98,6 +98,104 @@
     return map;
   }
 
+  /**
+   * Seznam k prezenci: abecední seznam hráčů s částkou, kterou ještě mají zaplatit.
+   * Hráč přihlášený sám: startovné + jeho doplňky (obědy, ubytování…).
+   * Výprava (víc hráčů v jedné přihlášce) a družstva: u hráče jen jeho startovné, společné položky
+   * (doplňky, startovné družstva) a celková částka výpravy jsou zvlášť v `groups` (označené písmeny A, B…).
+   * Zaplacené položky (na platný doklad) se nepočítají.
+   */
+  function presenceList(ev, regs, receipts) {
+    const paid = paidMap(receipts);
+    const items = buildItems(ev, regs);
+    const itemByKey = {};
+    items.forEach((it) => { itemByKey[it.key] = it; });
+    const unpaid = (it) => (it && !paid[it.key] ? it.amount : 0);
+    const active = regs.filter((r) => r.status !== CANCELLED);
+    const tour = (id) => ev.tournaments.find((t) => t.id === id) || {};
+    const apps = {};
+    const people = [];
+    active.forEach((r) => {
+      const a = apps[r.applicationId] || (apps[r.applicationId] = { id: r.applicationId, email: r.email || '', persons: {}, teams: [], teamFees: [], clubs: {} });
+      const t = tour(r.tournamentId);
+      if (!r.surname) { // řádek družstva
+        if (r.team && a.teams.indexOf(r.team) < 0) a.teams.push(r.team);
+        a.teamFees.push('fee:' + r.id);
+        return;
+      }
+      const key = [R.norm(r.surname), R.norm(r.firstName), toInt(r.year)].join('|');
+      let p = a.persons[key];
+      if (!p) {
+        p = a.persons[key] = { surname: r.surname, firstName: r.firstName, name: `${r.surname} ${r.firstName}`, year: toInt(r.year) || '',
+          club: r.club || '', title: r.title || '', tournaments: [], fee: 0, ownFee: 0, paidSomething: false, applicationId: r.applicationId, group: '' };
+        people.push(p);
+      }
+      if (r.club) a.clubs[r.club] = (a.clubs[r.club] || 0) + 1;
+      const label = t.short || t.name || '';
+      p.tournaments.push(t.type === 'team' ? `${label} (${r.team}${r.board ? ', ' + toInt(r.board) + '.' : ''})` : label);
+      const it = itemByKey['fee:' + r.id];
+      p.fee += unpaid(it);
+      p.ownFee += unpaid(it);
+      if (it && paid[it.key]) p.paidSomething = true;
+    });
+
+    const byName = (x, y) => x.surname.localeCompare(y.surname, 'cs') || x.firstName.localeCompare(y.firstName, 'cs') || (x.year || 0) - (y.year || 0);
+    const byClub = (x, y) => R.norm(x.club).localeCompare(R.norm(y.club), 'cs') || x.applicationId.localeCompare(y.applicationId);
+    const all = [];
+    Object.keys(apps).forEach((id) => {
+      const a = apps[id];
+      const persons = Object.keys(a.persons).map((k) => a.persons[k]).sort(byName);
+      const shared = items.filter((it) => it.applicationId === id && (it.key.indexOf('x:') === 0 || a.teamFees.indexOf(it.key) >= 0));
+      const sharedUnpaid = shared.filter((it) => !paid[it.key]);
+      const sharedSum = sharedUnpaid.reduce((s, it) => s + it.amount, 0);
+      const sharedPaid = shared.some((it) => paid[it.key]);
+      const single = persons.length === 1 && !a.teams.length;
+      if (single) {
+        persons[0].fee += sharedSum;
+        persons[0].extras = sharedUnpaid.map((it) => it.label);
+        if (sharedPaid) persons[0].paidSomething = true;
+      }
+      const playersFee = persons.reduce((s, p) => s + p.ownFee, 0);
+      all.push({
+        applicationId: id, email: a.email, single, teams: a.teams.slice(), persons,
+        club: Object.keys(a.clubs).sort((x, y) => a.clubs[y] - a.clubs[x])[0] || a.teams[0] || '',
+        items: sharedUnpaid.map((it) => ({ label: it.label, amount: it.amount })),
+        playersFee, total: sharedSum + playersFee,
+        paidSomething: sharedPaid || persons.some((p) => p.paidSomething),
+      });
+    });
+    // výpravy a družstva (víc hráčů v přihlášce) – v seznamu po jménech označené písmenem
+    const groups = all.filter((a) => !a.single).sort(byClub);
+    groups.forEach((g, i) => {
+      g.letter = letterFor(i);
+      g.persons.forEach((p) => { p.group = g.letter; });
+    });
+    people.sort(byName);
+    // po přihláškách: podle klubu, samostatní hráči podle jména
+    const applications = all.slice().sort((x, y) => byClub(x, y));
+    // po klubech: přihláška patří klubu, za který platí (nejčastější klub jejích hráčů)
+    const clubMap = {};
+    all.forEach((a) => {
+      const c = clubMap[a.club] || (clubMap[a.club] = { club: a.club, applications: [], persons: [], total: 0, paidSomething: false });
+      c.applications.push(a);
+      c.persons = c.persons.concat(a.persons);
+      c.total += a.total;
+      if (a.paidSomething) c.paidSomething = true;
+    });
+    const clubs = Object.keys(clubMap).map((k) => clubMap[k])
+      .sort((x, y) => (x.club ? 0 : 1) - (y.club ? 0 : 1) || R.norm(x.club).localeCompare(R.norm(y.club), 'cs'));
+    clubs.forEach((c) => {
+      c.persons.sort(byName);
+      c.applications.sort((x, y) => x.applicationId.localeCompare(y.applicationId));
+    });
+    return { people, groups, applications, clubs, total: all.reduce((s, a) => s + a.total, 0) };
+  }
+
+  function letterFor(i) {
+    const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return i < 26 ? A[i] : A[Math.floor(i / 26) - 1] + A[i % 26];
+  }
+
   // ---- částka slovy ----
   const ONES = ['', 'jedna', 'dva', 'tři', 'čtyři', 'pět', 'šest', 'sedm', 'osm', 'devět', 'deset', 'jedenáct', 'dvanáct',
     'třináct', 'čtrnáct', 'patnáct', 'šestnáct', 'sedmnáct', 'osmnáct', 'devatenáct'];
@@ -141,7 +239,7 @@
     return out.charAt(0).toUpperCase() + out.slice(1);
   }
 
-  const api = { buildItems, paidMap, numberWords, amountWords };
+  const api = { buildItems, paidMap, presenceList, numberWords, amountWords };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.Payments = api;
 })(typeof window !== 'undefined' ? window : globalThis);

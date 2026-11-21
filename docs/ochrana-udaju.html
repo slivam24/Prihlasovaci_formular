@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zpracování osobních údajů</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <p class="back small"><a href="./" id="back">← Všechny akce</a></p>
+      <h1>Informace o zpracování osobních údajů</h1>
+      <p class="muted" id="event-line">Přihlášky na šachové turnaje</p>
+    </header>
+
+    <article class="card prose">
+      <h2>Kdo údaje zpracovává</h2>
+      <p>Správcem osobních údajů je <strong>pořadatel akce</strong>, na kterou se přihlašujete:</p>
+      <p id="controller" class="controller">údaje pořadatele jsou uvedeny v propozicích akce</p>
+      <p>S dotazy a žádostmi se obracejte na pořadatele, nejsnáze odpovědí na potvrzovací e-mail přihlášky.</p>
+
+      <h2>Jaké údaje a proč</h2>
+      <ul>
+        <li><strong>Jméno, příjmení, ročník narození, pohlaví, klub, národní a FIDE rating, ID ČR a FIDE ID, titul</strong>
+          – pro zařazení do turnaje, kontrolu věkových kategorií, nasazení a zápočet turnaje na rating.
+          Údaje registrovaných hráčů se při vyplňování doplní z veřejné Listiny osobních koeficientů (LOK) Šachového svazu ČR.</li>
+        <li><strong>E-mail</strong> – pro potvrzení přihlášky, odkaz na změnu a organizační informace k akci.</li>
+        <li><strong>Doplňující údaje</strong> (ubytování, stravování, doprava, poznámky) – pro zajištění služeb, které jste si objednali.</li>
+        <li><strong>Údaje o platbách</strong> – pro vystavení pokladních dokladů.</li>
+      </ul>
+
+      <h2>Právní důvod</h2>
+      <ul>
+        <li>Přihláška a účast na turnaji – zpracování je nutné, abychom vás mohli do turnaje zařadit a akci zajistit
+          (čl. 6 odst. 1 písm. b) obecného nařízení o ochraně osobních údajů, GDPR).</li>
+        <li>Zveřejnění seznamu přihlášených a výsledků (jméno, ročník, klub, rating) a předání výsledků k zápočtu
+          – oprávněný zájem pořadatele na řádném průběhu a vyhodnocení veřejné sportovní soutěže podle pravidel šachových soutěží
+          (čl. 6 odst. 1 písm. f) GDPR).</li>
+        <li>Pokladní doklady – plnění povinností podle účetních a daňových předpisů (čl. 6 odst. 1 písm. c) GDPR).</li>
+      </ul>
+      <p>Přihlášku nezletilého hráče podává jeho zákonný zástupce, nebo vedoucí výpravy s jeho vědomím.</p>
+
+      <h2>Komu údaje předáváme a kde se zveřejňují</h2>
+      <ul>
+        <li><strong>Seznam přihlášených</strong> na tomto webu (jméno, ročník, klub, rating; e-mail ani doplňující údaje se nezveřejňují).</li>
+        <li><strong>Výsledky turnaje</strong> – zpravidla na chess-results.com a v materiálech pořadatele.</li>
+        <li><strong>Šachový svaz ČR a FIDE</strong> – výsledky k zápočtu na národní a mezinárodní rating.</li>
+        <li><strong>Google</strong> (tabulka a e-mail, ve kterých pořadatel přihlášky vede) jako zpracovatel; případně služba
+          pro odesílání e-mailů, pokud ji pořadatel používá.</li>
+      </ul>
+
+      <h2>Jak dlouho údaje uchováváme</h2>
+      <ul>
+        <li><strong>E-mail, odkaz na změnu přihlášky a volné poznámky</strong> se automaticky mažou
+          <strong>12 měsíců po skončení akce</strong>.</li>
+        <li><strong>Startovní listina a výsledky</strong> (jméno, ročník, klub, turnaj) zůstávají jako sportovní záznam o akci.</li>
+        <li><strong>Pokladní doklady</strong> po dobu, kterou stanoví účetní předpisy.</li>
+        <li>Zálohy dat se průběžně promazávají, nejstarší je zhruba rok stará.</li>
+      </ul>
+
+      <h2>Vaše práva</h2>
+      <p>Máte právo požádat pořadatele o přístup ke svým údajům, jejich opravu nebo výmaz, omezení zpracování
+        a vznést námitku proti zpracování založenému na oprávněném zájmu. Odhlásit se z turnaje nebo změnit objednané služby
+        můžete sami přes odkaz z potvrzovacího e-mailu. Pokud se domníváte, že s údaji nakládáme v rozporu s předpisy,
+        můžete podat stížnost u <a href="https://uoou.gov.cz" target="_blank" rel="noopener">Úřadu pro ochranu osobních údajů</a>.</p>
+    </article>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/picker.js"></script>
+  <script src="js/ochrana.js"></script>
+</body>
+</html>

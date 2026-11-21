@@ -23,6 +23,7 @@
     const ev = data.event;
     document.title = 'Přihlášení – ' + ev.name;
     $('#event-name').textContent = ev.name;
+    $('#privacy-link').href = 'ochrana-udaju.html?akce=' + encodeURIComponent(ev.slug);
     const formLink = $('#form-link');
     if (R.isClosed(ev)) formLink.hidden = true;
     else formLink.href = 'prihlaska.html?akce=' + encodeURIComponent(ev.slug);

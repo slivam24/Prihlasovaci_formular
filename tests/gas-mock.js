@@ -64,6 +64,7 @@ function createGas(opts) {
   const props = Object.assign({ GOOGLE_CLIENT_ID: CLIENT_ID, SITE_URL: 'http://localhost/' }, opts.props || {});
   const cache = {};
   const mails = [];
+  const mailQuota = { left: opts.mailQuota == null ? 100 : opts.mailQuota };
   const owner = opts.owner || 'owner@example.cz';
 
   const spreadsheet = {
@@ -109,7 +110,10 @@ function createGas(opts) {
       createTextOutput: (s) => ({ content: s, setMimeType() { return this; } }),
       MimeType: { JSON: 'json' },
     },
-    MailApp: { sendEmail: (o) => mails.push(o) },
+    MailApp: {
+      sendEmail: (o) => { if (mailQuota.left <= 0) throw new Error('Service invoked too many times for one day: email.'); mailQuota.left--; mails.push(o); },
+      getRemainingDailyQuota: () => mailQuota.left,
+    },
   };
 
   const ctx = vm.createContext(globals);
@@ -122,7 +126,7 @@ function createGas(opts) {
     insert_('users', [{ email: ${JSON.stringify(owner)}, role: 'superadmin', active: 'ANO', createdAt: new Date().toISOString() }]);`, ctx);
 
   return {
-    sheets, mails, props, ctx,
+    sheets, mails, mailQuota, props, ctx,
     get(params) {
       reset();
       return JSON.parse(ctx.doGet({ parameter: params || {} }).content);

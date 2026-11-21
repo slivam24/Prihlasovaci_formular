@@ -454,3 +454,49 @@ section > .step-title { margin-bottom: 4px; }
   .card { padding: 16px; }
 }
 .table-wrap { -webkit-overflow-scrolling: touch; }
+
+/* seznam k prezenci (tisk) */
+.presence { background: #fff; color: #111; padding: 16px; border: 1px solid #ccc; }
+.presence .pr-head h1 { font-size: 20px; margin: 0; }
+.presence .pr-head p { margin: 2px 0 10px; font-size: 12px; color: #333; }
+.pr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.pr-table th, .pr-table td { border: 1px solid #999; padding: 3px 6px; color: #111; white-space: normal; vertical-align: top; background: #fff; }
+.pr-table th { font-size: 11px; color: #333; background: #eee; }
+.pr-table tbody tr:hover td { background: #fff; }
+.pr-table .pr-letter td { background: #e6e6e6; font-weight: 700; padding: 1px 6px; }
+.pr-table .pr-box, .pr-box-h { width: 34px; }
+.pr-table .num { white-space: nowrap; }
+.pr-sub { color: #666; }
+.pr-extras { font-size: 11px; color: #444; }
+.pr-table td.pr-group { white-space: nowrap; font-size: 11.5px; }
+.pr-table td:nth-child(2) { min-width: 9em; }
+.pr-groups { margin-top: 18px; }
+.pr-groups h2 { font-size: 15px; margin: 0 0 2px; }
+.pr-group-card { border: 1px solid #999; padding: 6px 8px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
+.pr-group-head { display: flex; gap: 10px; align-items: center; }
+.pr-group-head .pr-title { flex: 1; }
+.pr-letter-badge { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 2px solid #111; border-radius: 50%; font-weight: 800; }
+.pr-total { font-weight: 800; font-size: 15px; white-space: nowrap; }
+.pr-box.big { width: 26px; height: 26px; border: 1.5px solid #111; }
+.pr-items { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+.pr-items td { border: 0; border-top: 1px dotted #bbb; padding: 2px 4px; color: #111; background: #fff; }
+.pr-items tbody tr:hover td { background: #fff; }
+@media print {
+  .presence { border: 0; padding: 0; }
+  .pr-table thead { display: table-header-group; }
+  .pr-table tr { break-inside: avoid; page-break-inside: avoid; }
+  @page { size: A4 portrait; margin: 10mm; }
+}
+
+/* zpracování osobních údajů */
+.privacy-note { color: var(--muted); }
+.prose h2 { margin-top: 22px; }
+.prose h2:first-child { margin-top: 0; }
+.prose ul { padding-left: 20px; }
+.prose li + li { margin-top: 6px; }
+.controller { padding: 10px 14px; border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 6px; }
+.print-bar .chip { text-decoration: none; }
+.print-bar .chip.active { background: var(--accent); color: var(--accent-text); }
+.pr-inner { margin-top: 6px; font-size: 12px; }
+.pr-group-card .pr-inner th { background: #f3f3f3; }
+.pr-subtotals { margin: 4px 0 0; color: #333; }

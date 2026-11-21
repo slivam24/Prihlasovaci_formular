@@ -125,6 +125,7 @@
     $('#event-meta').textContent = [R.formatRange(ev.dateFrom, ev.dateTo), ev.place].filter(Boolean).join(' · ');
     $('#app-meta').textContent = `Přihláška č. ${app.id} · ${app.email}` + (data.admin ? ' · úprava pořadatelem' : '');
     $('#list-link').href = 'seznam.html?akce=' + encodeURIComponent(ev.slug);
+    $('#privacy-link').href = 'ochrana-udaju.html?akce=' + encodeURIComponent(ev.slug);
 
     const editable = data.canEdit;
     if (!editable) {

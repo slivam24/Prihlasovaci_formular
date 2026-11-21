@@ -128,6 +128,26 @@
     return `<span class="status status-${esc(s)}">${esc(R.STATUS_LABELS[s] || s)}</span>`;
   }
 
+  /** Upozornění na denní limit e-mailů, frontu a vypnuté zálohy. */
+  function systemNotice(sys) {
+    if (!sys) return '';
+    const out = [];
+    const m = sys.mail || {};
+    if (m.queued) {
+      out.push(`<p class="notice-inline">${R.plural(m.queued, 'e-mail čeká', 'e-maily čekají', 'e-mailů čeká')} na odeslání – denní limit
+        Google účtu je vyčerpaný. Odešlou se automaticky, jakmile se limit obnoví (do 24 hodin)${sys.jobs === false ? ', <strong>ale nejdřív je potřeba zapnout automatické odesílání</strong> (viz níže)' : ''}.
+        Přihlášky se ukládají normálně.</p>`);
+    } else if (m.provider === 'gmail' && m.remaining != null && m.remaining < 20) {
+      out.push(`<p class="notice-inline">Dnes lze odeslat už jen ${R.plural(m.remaining, 'e-mail', 'e-maily', 'e-mailů')}
+        (limit Google účtu je 100 denně). Další potvrzení se uloží a odešlou později automaticky.</p>`);
+    }
+    if (sys.jobs === false) {
+      out.push(`<p class="notice-inline">Automatické zálohy a odesílání čekajících e-mailů nejsou zapnuté. V tabulce s daty
+        spusťte menu <strong>Turnaje → Zapnout zálohy a frontu e-mailů</strong> a potvrďte oprávnění.</p>`);
+    }
+    return out.join('');
+  }
+
   function errorBox(e) {
     return `<div class="errors" role="alert">${esc(e.message || e)}</div>`;
   }
@@ -225,6 +245,7 @@
           <a class="button primary" href="#/akce/nova">+ Nová akce</a>
         </div>
       </div>
+      ${systemNotice(data.system)}
       ${data.events.length ? `<div class="card table-wrap"><table class="admin-table">
         <thead><tr><th>Akce</th><th>Termín</th><th>Stav</th><th>Přihlášek</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>`
@@ -837,6 +858,7 @@
           <a class="button" href="#/akce/${esc(ev.id)}/upravit">Upravit akci</a>
           <button type="button" class="button" id="copy-event">Kopírovat akci</button>
           <a class="button" href="#/akce/${esc(ev.id)}/platby">Platby a doklady</a>
+          <a class="button" href="#/akce/${esc(ev.id)}/prezence">Seznam k prezenci</a>
         </div>
       </div>
       <p class="links">
@@ -845,6 +867,7 @@
         <button type="button" class="link" id="copy-link">Zkopírovat odkaz na formulář</button>
       </p>
       ${ev.status === 'koncept' ? '<p class="notice-inline">Akce je rozpracovaná – formulář ani seznam zatím nejsou veřejné.</p>' : ''}
+      ${systemNotice(current.system)}
 
       ${ev.tournaments.length > 1 ? `<nav class="jump" aria-label="Turnaje akce"><span class="small muted">Přejít na:</span>${ev.tournaments.map((t) =>
         `<button type="button" class="chip" data-jump="t-${esc(t.id)}">${esc(t.short || t.name)} <strong>${t.count}</strong></button>`).join('')}</nav>` : ''}
@@ -1169,6 +1192,7 @@
       <p class="back small"><a href="#/akce/${esc(ev.id)}">← ${esc(ev.name)}</a></p>
       <div class="page-head"><h1>Platby a doklady</h1>
         <div class="actions">
+          <a class="button" href="#/akce/${esc(ev.id)}/prezence">Seznam k prezenci</a>
           <button type="button" class="button" id="pay-blank">Prázdné doklady k tisku</button>
           <button type="button" class="button" id="pay-export">Export plateb (.xlsx)</button>
         </div></div>
@@ -1422,6 +1446,118 @@
     $('#print').addEventListener('click', () => window.print());
   }
 
+  const PRESENCE_MODES = [
+    { id: 'jmena', label: 'Po jménech', hint: 'Abecední seznam hráčů; výpravy a družstva platí dohromady (písmeno odkazuje na souhrn na konci)' },
+    { id: 'prihlasky', label: 'Po přihláškách', hint: 'Každá přihláška zvlášť s hráči, doplňky a celkovou částkou' },
+    { id: 'kluby', label: 'Po klubech', hint: 'Hráči a přihlášky seskupené podle klubu s částkou za klub' },
+  ];
+
+  async function viewPresence(eventId, mode) {
+    mode = PRESENCE_MODES.some((m) => m.id === mode) ? mode : 'jmena';
+    loading('Připravuji seznam…');
+    await loadEventData(eventId, (data) => { current = data; });
+    const ev = current.event;
+    const list = window.Payments.presenceList(ev, current.registrations, current.receipts || []);
+    const money = (n) => (n ? esc(R.formatMoney(n)) : '');
+    const due = (n, paidSomething) => (n ? money(n) : (paidSomething ? 'zaplaceno' : '–'));
+    const nameCell = (p) => `<strong>${esc(p.surname)}</strong> ${esc(p.firstName)}${p.title ? ` <small>${esc(p.title)}</small>` : ''}`;
+
+    // tabulka hráčů uvnitř bloku (přihláška / klub)
+    const personsTable = (persons, opts) => `<table class="pr-table pr-inner"><thead><tr><th class="pr-box-h">Přít.</th><th>Hráč</th>
+        <th class="num">Ročník</th>${opts.club ? '<th>Klub</th>' : ''}${opts.app ? '<th>Přihláška</th>' : ''}<th>Turnaje</th><th class="num">Startovné</th></tr></thead>
+      <tbody>${persons.map((p) => `<tr><td class="pr-box"></td><td>${nameCell(p)}</td><td class="num">${esc(p.year)}</td>
+        ${opts.club ? `<td>${esc(p.club)}</td>` : ''}${opts.app ? `<td class="pr-group">${esc(p.applicationId)}</td>` : ''}
+        <td>${esc(p.tournaments.join(', '))}</td><td class="num">${money(p.ownFee) || '–'}</td></tr>`).join('')}</tbody></table>`;
+    const itemsTable = (rows) => (rows.length ? `<table class="pr-items"><tbody>${rows.map((it) =>
+      `<tr><td>${esc(it.label)}</td><td class="num">${money(it.amount)}</td></tr>`).join('')}</tbody></table>` : '');
+    const card = (o) => `<div class="pr-group-card">
+      <div class="pr-group-head">${o.letter ? `<span class="pr-letter-badge">${esc(o.letter)}</span>` : ''}
+        <div class="pr-title"><strong>${esc(o.title)}</strong><div class="small">${o.sub}</div></div>
+        <div class="pr-total">${due(o.total, o.paidSomething)}</div>
+        <div class="pr-box big" title="zaplaceno"></div>
+      </div>${o.body}</div>`;
+    const appSub = (a) => [`přihláška ${esc(a.applicationId)}`, a.email ? esc(a.email) : '', R.plural(a.persons.length, 'hráč', 'hráči', 'hráčů'),
+      a.teams.length ? 'družstva: ' + esc(a.teams.join(', ')) : ''].filter(Boolean).join(' · ');
+    const teamOnlyNote = (a) => (a.teams.length && !a.persons.length ? '<p class="small">Soupiska zatím není vyplněná.</p>' : '');
+
+    let body = '';
+    let count = list.people.length;
+    if (mode === 'jmena') {
+      let lastLetter = '';
+      const rows = list.people.map((p) => {
+        const letter = p.surname.charAt(0).toLocaleUpperCase('cs');
+        const head = letter !== lastLetter ? `<tr class="pr-letter"><td colspan="8">${esc(letter)}</td></tr>` : '';
+        lastLetter = letter;
+        const amount = p.group ? `<span class="pr-sub">${money(p.fee) || '–'}</span>` : (p.fee ? `<strong>${money(p.fee)}</strong>` : (p.paidSomething ? 'zaplaceno' : '–'));
+        return `${head}<tr>
+          <td class="pr-box"></td><td>${nameCell(p)}</td><td class="num">${esc(p.year)}</td><td>${esc(p.club)}</td>
+          <td>${esc(p.tournaments.join(', '))}${p.extras && p.extras.length ? `<div class="pr-extras">${esc(p.extras.join(', '))}</div>` : ''}</td>
+          <td class="num">${amount}</td>
+          <td class="pr-group">${p.group ? `výprava <strong>${esc(p.group)}</strong>` : ''}</td>
+          <td class="pr-box"></td></tr>`;
+      }).join('');
+      const groups = list.groups.map((g) => card({
+        letter: g.letter, title: g.club || g.teams.join(', ') || 'přihláška ' + g.applicationId, sub: appSub(g),
+        total: g.total, paidSomething: g.paidSomething,
+        body: teamOnlyNote(g) + itemsTable((g.playersFee ? [{ label: `Startovné hráčů (${g.persons.filter((p) => p.ownFee).length})`, amount: g.playersFee }] : []).concat(g.items)),
+      })).join('');
+      body = `<table class="pr-table">
+          <thead><tr><th class="pr-box-h">Přít.</th><th>Hráč</th><th class="num">Ročník</th><th>Klub</th><th>Turnaje / doplňky</th>
+            <th class="num">K úhradě</th><th>Platí</th><th class="pr-box-h">Zapl.</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="8">Zatím nikdo není přihlášený.</td></tr>'}</tbody>
+        </table>
+        ${groups ? `<section class="pr-groups"><h2>Výpravy a družstva – platí vedoucí za celou přihlášku</h2>
+          <p class="small">U hráčů výpravy je v seznamu jen jejich startovné (šedě). Celková částka výpravy vč. obědů a ubytování je tady.</p>
+          ${groups}</section>` : ''}`;
+    } else if (mode === 'prihlasky') {
+      count = list.applications.length;
+      body = list.applications.map((a) => card({
+        title: a.single ? a.persons[0].name : (a.club || a.teams.join(', ') || 'přihláška ' + a.applicationId),
+        sub: appSub(a), total: a.total, paidSomething: a.paidSomething,
+        body: (a.persons.length ? personsTable(a.persons, { club: !a.single }) : teamOnlyNote(a)) + itemsTable(a.items),
+      })).join('') || '<p>Zatím nikdo není přihlášený.</p>';
+    } else {
+      count = list.clubs.length;
+      body = list.clubs.map((c) => {
+        const multi = c.applications.length > 1;
+        const items = [];
+        c.applications.forEach((a) => a.items.forEach((it) => items.push({ label: (multi ? `přihl. ${a.applicationId}: ` : '') + it.label, amount: it.amount })));
+        const subtotals = multi ? c.applications.filter((a) => a.total).map((a) => `${esc(a.applicationId)}${a.email ? ' (' + esc(a.email) + ')' : ''}: ${money(a.total)}`).join(' · ') : '';
+        return card({
+          title: c.club || 'bez klubu', total: c.total, paidSomething: c.paidSomething,
+          sub: [R.plural(c.persons.length, 'hráč', 'hráči', 'hráčů'), R.plural(c.applications.length, 'přihláška', 'přihlášky', 'přihlášek'),
+            c.applications.some((a) => a.teams.length) ? 'družstva: ' + esc([].concat(...c.applications.map((a) => a.teams)).join(', ')) : ''].filter(Boolean).join(' · '),
+          body: (c.persons.length ? personsTable(c.persons, { app: multi, club: c.persons.some((p) => p.club !== c.club) }) : '')
+            + itemsTable(items) + (subtotals ? `<p class="small pr-subtotals">Po přihláškách: ${subtotals}</p>` : ''),
+        });
+      }).join('') || '<p>Zatím nikdo není přihlášený.</p>';
+    }
+
+    const m = PRESENCE_MODES.find((x) => x.id === mode);
+    document.body.classList.add('print-receipts');
+    app.innerHTML = `
+      <div class="no-print print-bar">
+        <p class="back small"><a href="#/akce/${esc(eventId)}">← ${esc(ev.name)}</a></p>
+        <div class="actions">
+          <span class="small muted">Seznam:</span>
+          ${PRESENCE_MODES.map((x) => `<a class="chip${x.id === mode ? ' active' : ''}" href="#/akce/${esc(eventId)}/prezence/${x.id}"
+            ${x.id === mode ? 'aria-current="page"' : ''}>${esc(x.label)}</a>`).join('')}
+          <button type="button" class="primary" id="print">Vytisknout / uložit jako PDF</button>
+        </div>
+        <p class="small muted">${esc(m.hint)}. Částky jsou bez položek, na které už byl vystaven doklad – vytiskněte těsně před prezencí.</p>
+      </div>
+      <article class="presence">
+        <header class="pr-head">
+          <h1>${esc(ev.name)} – prezence (${esc(m.label.toLowerCase())})</h1>
+          <p>${esc([R.formatRange(ev.dateFrom, ev.dateTo), ev.place].filter(Boolean).join(' · '))} ·
+            ${R.plural(list.people.length, 'hráč', 'hráči', 'hráčů')}${mode === 'prihlasky' ? ' · ' + R.plural(count, 'přihláška', 'přihlášky', 'přihlášek') : ''}${mode === 'kluby' ? ' · ' + R.plural(count, 'klub', 'kluby', 'klubů') : ''}
+            · k úhradě celkem ${money(list.total) || '0 Kč'} · stav k ${esc(new Date().toLocaleString('cs-CZ'))}</p>
+        </header>
+        ${body}
+      </article>`;
+    $('#print').addEventListener('click', () => window.print());
+  }
+
   async function viewReceipts(eventId, ids) {
     loading('Připravuji doklady…');
     if (!pay || pay.event.id !== eventId) await viewPayments(eventId);
@@ -1537,6 +1673,7 @@
       else if (h === '/akce/nova') await viewEditor(null);
       else if ((m = h.match(/^\/akce\/([^/]+)\/upravit$/))) await viewEditor(m[1]);
       else if ((m = h.match(/^\/akce\/([^/]+)\/platby$/))) await viewPayments(m[1]);
+      else if ((m = h.match(/^\/akce\/([^/]+)\/prezence(?:\/([a-z]+))?$/))) await viewPresence(m[1], m[2]);
       else if ((m = h.match(/^\/akce\/([^/]+)\/doklady\/([^/]+)$/))) await viewReceipts(m[1], m[2]);
       else if ((m = h.match(/^\/akce\/([^/]+)\/prazdne-doklady\/(\d+)\/([01]{2})$/))) await viewBlankReceipts(m[1], m[2], m[3]);
       else if ((m = h.match(/^\/akce\/([^/]+)$/))) await viewEvent(m[1]);

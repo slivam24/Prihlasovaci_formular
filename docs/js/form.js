@@ -34,6 +34,7 @@
     $('#event-meta').textContent = meta.join(' · ');
     $('#event-intro').textContent = ev.intro || '';
     $('#list-link').href = 'seznam.html?akce=' + encodeURIComponent(ev.slug);
+    $('#privacy-link').href = 'ochrana-udaju.html?akce=' + encodeURIComponent(ev.slug);
     if (ev.infoUrl) {
       const a = $('#info-link');
       a.href = ev.infoUrl;
@@ -574,7 +575,8 @@
     done.innerHTML = `
       <h2>Přihláška byla odeslána ✓</h2>
       ${what}
-      <p class="muted">Číslo přihlášky: <strong>${esc(res.id || '')}</strong>. Potvrzení jsme poslali na ${esc(payload.email)}.</p>
+      <p class="muted">Číslo přihlášky: <strong>${esc(res.id || '')}</strong>. ${res.mailDelayed ? "" : "Potvrzení jsme poslali na " + esc(payload.email) + "."}</p>
+      ${res.mailDelayed ? '<p class="notice-inline">Potvrzovací e-mail přijde se zpožděním (do 24 hodin) – pořadatel dnes vyčerpal denní limit e-mailů. Přihláška je ale uložená.</p>' : ''}
       ${res.editToken ? `<p class="small">Odhlásit se nebo změnit ubytování a další údaje půjde přes odkaz v e-mailu, nebo
         <a href="zmena.html?t=${encodeURIComponent(res.editToken)}">tady</a> (odkaz si můžete uložit).</p>` : ''}
       <p class="actions">

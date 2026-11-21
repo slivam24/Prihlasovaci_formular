@@ -33,6 +33,13 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
   změna ubytování/obědů/dopravy – do dne před začátkem akce; e-mail o změně přihlášenému i pořadateli (kontaktní e-mail akce),
 - **záznam všech změn** (list „Změny“) a export „Přihlášky, doplňky a změny“ (listy Přihlášky, Osoby a doplňky, Změny),
 - **kopie akce na další rok** (posune data i ročníky),
+- **seznam k prezenci** k tisku („Seznam k prezenci“ v detailu akce nebo v platbách) ve třech variantách:
+  po jménech (abecedně, výpravy odkazem na souhrn), po přihláškách, po klubech – vždy s částkou, kterou je ještě potřeba zaplatit,
+- **hlídání limitu e-mailů**: co se kvůli dennímu limitu Googlu (100 e-mailů) neodešle, čeká ve frontě a odešle se automaticky,
+  v administraci je upozornění; volitelně odesílání přes Brevo (300 e-mailů denně zdarma),
+- **denní záloha tabulky** do složky „Přihlášky – zálohy“ na Disku (jen při změně; 14 posledních + 1 za měsíc),
+- **ochrana osobních údajů**: stránka `ochrana-udaju.html?akce=…` (správcem je pořadatel akce), upozornění ve formuláři,
+  e-maily a poznámky se 12 měsíců po akci automaticky mažou,
 - **import akce z propozic přes AI**: tlačítko „Importovat z propozic (AI)“ zkopíruje zadání pro ChatGPT / Clauda,
   odpověď (JSON) se vloží zpět a akce se otevře vyplněná v editoru ke kontrole (formát a převod: `docs/js/import.js`),
 - **správci**: hlavní správce přidává pořadatele z dalších klubů, ti vidí jen své akce.
@@ -92,6 +99,9 @@ hráč / pořadatel ──► web na GitHub Pages ◄─────────
 6. Do `docs/config.json` vyplňte `"apiUrl"` (adresa `/exec`) a `"googleClientId"` a commitněte do `main`.
 7. Volitelně: **Turnaje → Založit ukázkovou akci (Chlumec 2026)**.
 
+8. **Turnaje → Zapnout zálohy a frontu e-mailů** – potvrďte oprávnění (Disk kvůli zálohám, spouštěče). Zapne noční zálohu,
+   odesílání e-mailů čekajících kvůli limitu a mazání kontaktů 12 měsíců po akci.
+
 > Po každé změně `Code.gs` je potřeba nová verze nasazení. Ručně: **Implementovat → Spravovat implementace →
 > Upravit → Verze: Nová verze** (adresa `/exec` zůstane stejná). Automaticky: viz další oddíl.
 
@@ -112,6 +122,13 @@ Workflow `.github/workflows/apps-script.yml` po každé změně v `apps-script/`
 
 ID nasazení se bere z `apiUrl` v `docs/config.json`. Přihlašovací údaje clasp dávají přístup ke všem
 Apps Script projektům účtu – uchovávejte je jen v GitHub Secrets.
+
+### E-maily přes Brevo (volitelné)
+Gmail účet smí ze skriptu poslat asi 100 e-mailů denně. Při větším provozu:
+1. Založte účet na brevo.com (zdarma 300 e-mailů denně) a ověřte odesílací adresu (nejlépe na doméně klubu).
+2. Apps Script → Nastavení projektu → Vlastnosti skriptu: `BREVO_API_KEY` (API klíč) a `BREVO_SENDER` (ověřená adresa).
+
+Bez těchto vlastností se posílá přes Gmail.
 
 ### Přidání pořadatele z jiného klubu
 V administraci otevřete **Správci → Přidat správce** a zadejte jeho Google účet s rolí *pořadatel*.
