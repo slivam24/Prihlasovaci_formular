@@ -1,0 +1,107 @@
+{
+  "festival": {
+    "name": "Šachový festival Chlumec okr. Ústí n. L. 2026",
+    "year": 2026,
+    "infoUrl": "https://www.festival.sachyusti.cz",
+    "intro": "Přihlášku vyplňte do 2. 5.",
+    "deadline": "",
+    "contactEmail": ""
+  },
+  "appsScriptUrl": "",
+  "confirmationEmail": true,
+  "publicList": true,
+
+  "tournaments": [
+    {
+      "code": "rapid",
+      "short": "Open rapid",
+      "day": "sobota",
+      "name": "Open rapid – Grand Prix ČR i KP rapid ÚKŠS",
+      "type": "individual"
+    },
+    {
+      "code": "blesk",
+      "short": "Blesk",
+      "day": "neděle",
+      "name": "Otevřený bleskový turnaj – zároveň jako KP blesk ÚKŠS",
+      "type": "individual"
+    },
+    {
+      "code": "zaci",
+      "short": "Mladší žáci",
+      "day": "sobota",
+      "name": "Turnaj mladších žáků (registrovaných i neregistrovaných)",
+      "type": "individual",
+      "minBirthYear": 2014
+    },
+    {
+      "code": "neregistrovani",
+      "short": "Neregistrovaní do 1100",
+      "day": "sobota",
+      "name": "Turnaj neregistrovaných a hráčů do ELO 1100",
+      "type": "individual",
+      "maxBirthYear": 2013,
+      "warnMaxRating": 1100
+    },
+    {
+      "code": "veterani",
+      "short": "Veteráni",
+      "day": "pátek",
+      "name": "Turnaj veteránů",
+      "type": "individual"
+    },
+    {
+      "code": "druzstva",
+      "short": "Družstva",
+      "day": "pátek",
+      "name": "Velká cena 4členných juniorských družstev",
+      "type": "team",
+      "boards": 4,
+      "reserves": 1
+    }
+  ],
+
+  "ageCategories": [
+    { "code": "U12", "maxAge": 12 },
+    { "code": "U15", "maxAge": 15 },
+    { "code": "U18", "maxAge": 18 },
+    { "code": "U20", "maxAge": 20 },
+    { "code": "S60", "minAge": 60 }
+  ],
+  "unregisteredCategory": "N",
+
+  "extras": [
+    {
+      "id": "doprava",
+      "short": "Doprava",
+      "label": "Doprava z hlavního vlakového nádraží (60 Kč na den)",
+      "help": "Nepovinné – jen pro zájemce.",
+      "type": "checkboxes",
+      "options": ["sobota tam", "sobota zpět"],
+      "modes": ["individual"]
+    },
+    {
+      "id": "ubytovani",
+      "short": "Ubytování",
+      "label": "Ubytování",
+      "help": "Nepovinné – jen pro zájemce. Bude vám odpovězeno.",
+      "type": "select",
+      "emptyLabel": "nemám zájem",
+      "options": ["1lůžkový pokoj", "2lůžkový pokoj"],
+      "modes": ["individual"]
+    },
+    {
+      "id": "sdeleni",
+      "short": "Další sdělení",
+      "label": "Další sdělení",
+      "help": "U 2lůžkového pokoje napište jméno druhé osoby (z turnaje, nebo „nehrající“), případně „je mi jedno s kým“. U družstev sem napište požadavky na ubytování a dopravu.",
+      "type": "textarea"
+    },
+    {
+      "id": "poznamka",
+      "short": "Poznámka",
+      "label": "Poznámka",
+      "type": "textarea"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+# Generuje se automaticky z LOK (scripts/convert_lok.py) při každém nasazení webu
+docs/data/players.json
+__pycache__/
+node_modules/
