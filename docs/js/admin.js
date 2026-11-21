@@ -314,6 +314,7 @@
   const EXTRA_TYPE_LABELS = {
     checkboxes: 'zaškrtávací políčka (více možností)',
     select: 'výběr jedné možnosti',
+    quantity: 'počet kusů s cenou (obědy, lůžka…)',
     text: 'krátký text',
     textarea: 'delší text',
   };
@@ -351,6 +352,44 @@
     </div>`;
   }
 
+  // Předvolby pro editor akce – pořadatel jen upraví názvy, ceny a termíny.
+  const EXTRA_PRESETS = {
+    meals: {
+      type: 'quantity', label: 'Obědy', unit: 'porce',
+      options: ['sobota – oběd', 'neděle – oběd'], prices: [130, 130],
+      help: 'Počet porcí pro celou přihlášku (u výpravy za všechny dohromady).', modes: ['individual', 'team'],
+    },
+    lodging: {
+      type: 'quantity', label: 'Ubytování', unit: 'lůžko',
+      options: ['pátek–sobota, 2lůžkový pokoj', 'pátek–sobota, 1lůžkový pokoj', 'sobota–neděle, 2lůžkový pokoj', 'sobota–neděle, 1lůžkový pokoj'],
+      prices: [450, 600, 450, 600],
+      help: 'Počet lůžek za noc pro celou přihlášku. Se kým chcete být na pokoji, napište do poznámky.', modes: ['individual', 'team'],
+    },
+  };
+
+  function optionsText(x) {
+    return (x.options || []).map((o, i) => {
+      const p = x.prices && x.prices[i];
+      return typeof p === 'number' ? `${o} | ${p}` : o;
+    }).join('\n');
+  }
+
+  function parseOptionsText(text) {
+    const options = [];
+    const prices = [];
+    text.split('\n').map((l) => l.trim()).filter(Boolean).forEach((l) => {
+      const m = l.match(/^(.*?)\s*\|\s*([\d\s]+(?:[.,]\d+)?)\s*(?:kč)?\s*$/i);
+      if (m) {
+        options.push(m[1].trim());
+        prices.push(parseFloat(m[2].replace(/\s/g, '').replace(',', '.')));
+      } else {
+        options.push(l);
+        prices.push(null);
+      }
+    });
+    return { options, prices };
+  }
+
   function extraCard(x) {
     x = x || { type: 'checkboxes', modes: ['individual', 'team'] };
     const modes = (x.modes || []).length === 1 ? x.modes[0] : 'both';
@@ -367,7 +406,10 @@
         <label>Typ odpovědi<select data-f="type">${options(EXTRA_TYPE_LABELS, x.type)}</select></label>
         <label>Zobrazit u<select data-f="modes">${options({ both: 'jednotlivců i družstev', individual: 'jen jednotlivců', team: 'jen družstev' }, modes)}</select></label>
         <label class="wide">Nápověda<input data-f="help" value="${esc(x.help || '')}" placeholder="nepovinné vysvětlení pod otázkou"></label>
-        <label class="wide options-field">Možnosti (každá na nový řádek)<textarea data-f="options" rows="3">${esc((x.options || []).join('\n'))}</textarea></label>
+        <label class="wide options-field">Možnosti – každá na nový řádek, cena za svislou čarou (nepovinné)
+          <textarea data-f="options" rows="4" placeholder="sobota – oběd | 130&#10;neděle – oběd | 130">${esc(optionsText(x))}</textarea>
+          <span class="hint">Např. „pátek–sobota, 2lůžkový pokoj | 450“. Bez ceny stačí jen název.</span></label>
+        <label class="unit-field">Jednotka<input data-f="unit" value="${esc(x.unit || '')}" placeholder="např. porce, lůžko"></label>
       </div>
     </div>`;
   }
@@ -378,7 +420,8 @@
       if (card.classList.contains('tour-card')) {
         $$('.team-only', card).forEach((el) => { el.hidden = typeSel.value !== 'team'; });
       } else {
-        $('.options-field', card).hidden = !(typeSel.value === 'checkboxes' || typeSel.value === 'select');
+        $('.options-field', card).hidden = !['checkboxes', 'select', 'quantity'].includes(typeSel.value);
+        $('.unit-field', card).hidden = typeSel.value !== 'quantity';
       }
     };
     typeSel.addEventListener('change', sync);
@@ -454,7 +497,11 @@
           <h2>Doplňující otázky</h2>
           <p class="muted small">Např. doprava, ubytování, strava, poznámka. Jméno, ročník, klub a e-mail se ptá vždy.</p>
           <div id="extras-edit"></div>
-          <button type="button" class="button" id="add-extra">+ Přidat otázku</button>
+          <p class="actions">
+            <button type="button" class="button" id="add-extra">+ Přidat otázku</button>
+            <button type="button" class="button" data-preset="meals">+ Obědy (s cenou)</button>
+            <button type="button" class="button" data-preset="lodging">+ Ubytování (s cenou)</button>
+          </p>
         </section>
 
         <div id="form-errors"></div>
@@ -474,6 +521,11 @@
     (ev.extras || []).forEach((x) => addCard(extras, extraCard(x)));
     $('#add-tour').addEventListener('click', () => { addCard(tours, tourCard()); $('[data-f="name"]', tours.lastElementChild).focus(); });
     $('#add-extra').addEventListener('click', () => { addCard(extras, extraCard()); $('[data-f="label"]', extras.lastElementChild).focus(); });
+    $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
+      addCard(extras, extraCard(JSON.parse(JSON.stringify(EXTRA_PRESETS[b.dataset.preset]))));
+      extras.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      $('[data-f="options"]', extras.lastElementChild).focus();
+    }));
 
     $('#event-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -497,7 +549,8 @@
           return {
             id: c.dataset.id || undefined,
             label: val(c, 'label'), type: val(c, 'type'), help: val(c, 'help'),
-            options: val(c, 'options').split('\n').map((s) => s.trim()).filter(Boolean),
+            ...parseOptionsText(val(c, 'options')),
+            unit: val(c, 'unit'),
             modes: m === 'both' ? ['individual', 'team'] : [m],
           };
         }),
@@ -614,26 +667,40 @@
 
   function extrasSummary() {
     const ev = current.event;
-    // počítají se osoby (hráč může mít v přihlášce víc turnajů = víc řádků; výprava = víc hráčů)
-    const persons = {};
+    // jedna odpověď za přihlášku (doplňky platí pro celou přihlášku, u výpravy za všechny)
+    const apps = {};
     current.registrations.filter((r) => r.status !== 'zrušeno').forEach((r) => {
-      const key = `${r.applicationId}|${R.norm(r.surname + ' ' + r.firstName)}|${r.year}`;
-      if (!persons[key]) persons[key] = r;
+      const a = apps[r.applicationId] || (apps[r.applicationId] = { r, names: [], persons: 0 });
+      const n = r.surname ? `${r.surname} ${r.firstName}` : r.team;
+      if (n && !a.names.includes(n)) { a.names.push(n); if (r.surname) a.persons += 1; }
     });
-    const list = Object.keys(persons).map((k) => persons[k]);
-    const parts = (ev.extras || []).filter((x) => x.type === 'checkboxes' || x.type === 'select').map((x) => {
-      const counts = x.options.map((o) => {
-        const who = list.filter((r) => {
-          let d = {};
-          try { d = JSON.parse(r.extras || '{}'); } catch (e) { /* nic */ }
-          const v = d[x.id];
-          return Array.isArray(v) ? v.includes(o) : v === o;
-        }).map((r) => `${r.surname} ${r.firstName}`);
-        return `<li><strong>${esc(o)}: ${who.length}</strong>${who.length ? ` <span class="small muted">(${esc(who.join(', '))})</span>` : ''}</li>`;
+    const list = Object.keys(apps).map((k) => apps[k]);
+    const extrasOf = (r) => { try { return JSON.parse(r.extras || '{}'); } catch (e) { return {}; } };
+    const who = (a) => (a.names.length > 2 ? `${a.names[0]} + ${a.names.length - 1}` : a.names.join(', '));
+    let grand = 0;
+    const parts = (ev.extras || []).filter((x) => ['checkboxes', 'select', 'quantity'].includes(x.type)).map((x) => {
+      let sum = 0;
+      const rows = x.options.map((o, i) => {
+        const price = R.optionPrice(x, i);
+        let count = 0;
+        const names = [];
+        list.forEach((a) => {
+          const v = extrasOf(a.r)[x.id];
+          const n = x.type === 'quantity' ? parseInt((v || {})[o], 10) || 0
+            : (Array.isArray(v) ? v.includes(o) : v === o) ? Math.max(1, a.persons) : 0;
+          if (n) { count += n; names.push(n > 1 ? `${who(a)} (${n})` : who(a)); }
+        });
+        if (price != null) sum += price * count;
+        return `<li><strong>${esc(o)}: ${count}${x.type === 'quantity' && x.unit ? ' ' + esc(x.unit) : ''}</strong>
+          ${price != null && count ? ` <span class="price">${esc(R.formatMoney(price * count))}</span>` : ''}
+          ${names.length ? ` <span class="small muted">(${esc(names.join(', '))})</span>` : ''}</li>`;
       }).join('');
-      return `<div><h3>${esc(x.label)}</h3><ul>${counts}</ul></div>`;
+      grand += sum;
+      return `<div><h3>${esc(x.label)}</h3><ul>${rows}</ul>${sum ? `<p class="small">Celkem: <strong>${esc(R.formatMoney(sum))}</strong></p>` : ''}</div>`;
     });
-    return parts.length ? `<section class="card"><h2>Souhrn doplňujících otázek <span class="small muted">(počty osob)</span></h2><div class="summary-grid">${parts.join('')}</div></section>` : '';
+    return parts.length ? `<section class="card"><h2>Souhrn doplňujících otázek</h2>
+      <div class="summary-grid">${parts.join('')}</div>
+      ${grand ? `<p>Celkem za všechny doplňky: <strong>${esc(R.formatMoney(grand))}</strong></p>` : ''}</section>` : '';
   }
 
   function renderEvent() {
@@ -729,7 +796,10 @@
     const ev = current.event;
     const tName = (id) => { const t = ev.tournaments.find((x) => x.id === id); return t ? t.short || t.name : id; };
     const extrasOf = (r) => { try { return JSON.parse(r.extras || '{}'); } catch (e) { return {}; } };
-    const extraVal = (d, x) => (Array.isArray(d[x.id]) ? d[x.id].join(', ') : d[x.id] || '');
+    const extraVal = (d, x) => R.extraText(x, d[x.id]);
+    const qtyCols = [];
+    (ev.extras || []).forEach((x) => { if (x.type === 'quantity') x.options.forEach((o) => qtyCols.push({ x, o })); });
+    const hasPrices = (ev.extras || []).some((x) => (x.prices || []).some((p) => typeof p === 'number'));
     const when = (s) => (s ? new Date(s).toLocaleString('cs-CZ') : '');
     const header = ['Turnaj', 'Příjmení', 'Jméno', 'Ročník', 'Klub', 'ELO ČR', 'FIDE', 'ID ČR', 'FIDE ID', 'V LOK',
       'Družstvo', 'Šachovnice', 'Kapitán', 'E-mail', 'Přihlášeno', 'Č. přihlášky', 'Stav', 'Změněno', 'Změnil', 'Poznámka pořadatele']
@@ -760,6 +830,34 @@
           .concat((ev.extras || []).map((x) => (p.active.length ? extraVal(d, x) : '')), [when(p.last), p.lastBy || '']);
       });
 
+    // doplňky po přihláškách: počty kusů (obědy, lůžka) a cena za celou přihlášku
+    const apps = {};
+    current.registrations.forEach((r) => {
+      const a = apps[r.applicationId] || (apps[r.applicationId] = { r, names: [], active: false });
+      if (r.status !== 'zrušeno') {
+        a.active = true;
+        a.r = r;
+        const n = r.surname ? `${r.surname} ${r.firstName}` : '';
+        if (n && !a.names.includes(n)) a.names.push(n);
+      }
+    });
+    const aHeader = ['Č. přihlášky', 'E-mail', 'Družstvo', 'Hráči', 'Počet hráčů', 'Stav']
+      .concat((ev.extras || []).filter((x) => x.type !== 'quantity').map((x) => x.label),
+        qtyCols.map((c) => `${c.x.label}: ${c.o}`), hasPrices ? ['Cena celkem (Kč)'] : []);
+    const aRows = Object.keys(apps).map((k) => apps[k]).map((a) => {
+      const d = a.active ? extrasOf(a.r) : {};
+      return [a.r.applicationId, a.r.email, a.r.team || '', a.names.join(', '), a.names.length, a.active ? 'přihlášena' : 'zrušena']
+        .concat((ev.extras || []).filter((x) => x.type !== 'quantity').map((x) => extraVal(d, x)),
+          qtyCols.map((c) => parseInt((d[c.x.id] || {})[c.o], 10) || 0),
+          hasPrices ? [R.extrasTotal(ev.extras, d)] : []);
+    });
+    if (aRows.length) {
+      const sums = aHeader.map((h, i) => (i >= aHeader.length - qtyCols.length - (hasPrices ? 1 : 0)
+        ? aRows.reduce((t, r) => t + (Number(r[i]) || 0), 0) : ''));
+      sums[0] = 'Celkem';
+      aRows.push(sums);
+    }
+
     const cHeader = ['Kdy', 'Kdo', 'Co', 'Podrobnosti', 'Č. přihlášky'];
     const cRows = (current.changes || []).slice().sort((a, b) => String(a.at).localeCompare(String(b.at)))
       .map((c) => [when(c.at), c.by, c.action, c.detail, c.applicationId]);
@@ -767,6 +865,7 @@
       await downloadXlsx(`${fileSafe(ev.slug)}_prihlasky.xlsx`, [
         { name: 'Přihlášky', rows: [header].concat(rows) },
         { name: 'Osoby a doplňky', rows: [pHeader].concat(pRows) },
+        { name: 'Doplňky po přihláškách', rows: [aHeader].concat(aRows) },
         { name: 'Změny', rows: [cHeader].concat(cRows) },
       ]);
     } catch (e) { alert(e.message); }

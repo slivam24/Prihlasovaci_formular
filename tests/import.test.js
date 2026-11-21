@@ -75,5 +75,7 @@ test('importovaná akce projde uložením na serveru', () => {
   assert.equal(res.event.status, 'koncept');
   assert.equal(res.event.tournaments.length, 4);
   assert.equal(res.event.tournaments[3].reserves, 1);
-  assert.deepEqual(res.event.extras.map((x) => x.type), ['checkboxes', 'select', 'textarea']);
+  assert.deepEqual(res.event.extras.map((x) => x.type), ['checkboxes', 'quantity', 'quantity', 'textarea']);
+  assert.deepEqual(res.event.extras[1].prices, [130, 130]);
+  assert.equal(res.event.extras[1].unit, 'porce');
 });

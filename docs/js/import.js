@@ -19,9 +19,10 @@
       { name: 'Velká cena 4členných družstev', short: 'Družstva', day: 'pátek', type: 'team', boards: 4, reserves: 1, minBirthYear: 2007, maxBirthYear: null, warnMaxRating: null, capacity: 12 },
     ],
     extras: [
-      { label: 'Doprava z nádraží (60 Kč na den)', type: 'checkboxes', options: ['sobota tam', 'sobota zpět'], help: 'Nepovinné', modes: ['individual'] },
-      { label: 'Ubytování', type: 'select', options: ['1lůžkový pokoj', '2lůžkový pokoj'], help: '', modes: ['individual', 'team'] },
-      { label: 'Poznámka', type: 'textarea', options: [], help: '', modes: ['individual', 'team'] },
+      { label: 'Doprava z nádraží', type: 'checkboxes', options: ['sobota tam', 'sobota zpět'], prices: [60, 60], help: 'Nepovinné', modes: ['individual'] },
+      { label: 'Obědy', type: 'quantity', unit: 'porce', options: ['sobota – oběd', 'neděle – oběd'], prices: [130, 130], help: 'Počet porcí pro celou přihlášku.', modes: ['individual', 'team'] },
+      { label: 'Ubytování', type: 'quantity', unit: 'lůžko', options: ['pátek–sobota, 2lůžkový pokoj', 'pátek–sobota, 1lůžkový pokoj'], prices: [450, 600], help: 'Počet lůžek pro celou přihlášku.', modes: ['individual', 'team'] },
+      { label: 'Poznámka', type: 'textarea', options: [], prices: [], help: '', modes: ['individual', 'team'] },
     ],
   };
 
@@ -42,13 +43,15 @@ Pravidla:
   - "minBirthYear": nejstarší povolený ročník u turnajů pro mládež ("2015 a mladší" → 2015). "maxBirthYear": nejmladší povolený ročník ("2014 a starší" → 2014). Jinak null.
   - "warnMaxRating": horní limit ELO, pokud turnaj je jen pro hráče do určitého ELO, jinak null.
   - "capacity": maximální počet hráčů (u družstev počet družstev), pokud je uveden, jinak null.
-- "extras": doplňující otázky, které se mají hráčů ptát (doprava, ubytování, strava…), jen pokud je propozice nabízejí. Vždy přidej na konec { "label": "Poznámka", "type": "textarea", "options": [], "help": "", "modes": ["individual", "team"] }.
-  - "type": "checkboxes" (více možností), "select" (jedna z možností), "text" (krátký text), "textarea" (delší text). U checkboxes a select vyplň "options".
+- "extras": doplňující otázky, které se mají hráčů ptát (doprava, ubytování, strava…), jen pokud je propozice nabízejí. Vždy přidej na konec { "label": "Poznámka", "type": "textarea", "options": [], "prices": [], "help": "", "modes": ["individual", "team"] }.
+  - "type": "quantity" = počet kusů (obědy v porcích, ubytování v lůžkách – každý oběd/den a každý typ pokoje a noc jako samostatná možnost), "checkboxes" (více možností), "select" (jedna z možností), "text" (krátký text), "textarea" (delší text).
+  - U quantity, checkboxes a select vyplň "options" a "prices" = ceny v Kč ve stejném pořadí jako options (neznámá cena = null). U quantity vyplň "unit" (např. "porce", "lůžko").
   - "modes": ["individual"] = jen u jednotlivců, ["team"] = jen u družstev, ["individual", "team"] = u obou.
 - Nic si nevymýšlej. Co v propozicích není, nech prázdné ("" nebo null).`;
 
   const TYPES = ['individual', 'team'];
-  const EXTRA_TYPES = ['checkboxes', 'select', 'text', 'textarea'];
+  const EXTRA_TYPES = ['checkboxes', 'select', 'quantity', 'text', 'textarea'];
+  const CHOICE = ['checkboxes', 'select', 'quantity'];
   const DAYS = ['pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota', 'neděle'];
 
   const str = (v, max) => (v == null ? '' : String(v)).replace(/\s+/g, ' ').trim().slice(0, max || 500);
@@ -164,15 +167,28 @@ Pravidla:
       if (!label) { warnings.push(`Doplňující otázka č. ${i + 1} nemá text, vynechána.`); return; }
       let type = str(x.type, 20).toLowerCase();
       if (!EXTRA_TYPES.includes(type)) type = 'text';
-      let options = Array.isArray(x.options) ? x.options : String(x.options || '').split(/\n|;/);
-      options = options.map((o) => str(o, 100)).filter(Boolean);
-      if ((type === 'checkboxes' || type === 'select') && !options.length) {
+      const rawOpts = Array.isArray(x.options) ? x.options : String(x.options || '').split(/\n|;/);
+      const rawPrices = Array.isArray(x.prices) ? x.prices : [];
+      const options = [];
+      const prices = [];
+      rawOpts.forEach((o, j) => {
+        const name = str(o, 100);
+        if (!name) return;
+        options.push(name);
+        const p = parseFloat(String(rawPrices[j] == null ? '' : rawPrices[j]).replace(/[^\d.,]/g, '').replace(',', '.'));
+        prices.push(isNaN(p) ? null : p);
+      });
+      if (CHOICE.includes(type) && !options.length) {
         warnings.push(`Otázka „${label}“ nemá možnosti, změněna na textovou odpověď.`);
         type = 'text';
       }
       let modes = Array.isArray(x.modes) ? x.modes.map((m) => str(m, 20).toLowerCase()).filter((m) => TYPES.includes(m)) : [];
       if (!modes.length) modes = TYPES.slice();
-      event.extras.push({ label, type, options: type === 'checkboxes' || type === 'select' ? options : [], help: str(x.help, 500), modes });
+      const choice = CHOICE.includes(type);
+      event.extras.push({
+        label, type, options: choice ? options : [], prices: choice && prices.some((p) => p != null) ? prices : [],
+        unit: type === 'quantity' ? str(x.unit, 20) : '', help: str(x.help, 500), modes,
+      });
     });
 
     return { event, warnings };

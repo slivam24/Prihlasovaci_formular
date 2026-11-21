@@ -17,27 +17,6 @@
     n.hidden = false;
   }
 
-  function extraField(x, value) {
-    const name = 'x_' + x.id;
-    const help = x.help ? `<span class="hint">${esc(x.help)}</span>` : '';
-    if (x.type === 'checkboxes') {
-      const vals = Array.isArray(value) ? value : [];
-      return `<fieldset class="extra"><legend>${esc(x.label)}</legend>${help}
-        ${(x.options || []).map((o) => `<label class="check"><input type="checkbox" name="${esc(name)}" value="${esc(o)}" ${vals.includes(o) ? 'checked' : ''}> ${esc(o)}</label>`).join('')}
-      </fieldset>`;
-    }
-    if (x.type === 'select') {
-      return `<label class="block extra">${esc(x.label)}
-        <select name="${esc(name)}"><option value="">—</option>
-          ${(x.options || []).map((o) => `<option ${o === value ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${help}
-      </label>`;
-    }
-    if (x.type === 'text') {
-      return `<label class="block extra">${esc(x.label)}<input name="${esc(name)}" maxlength="500" value="${esc(value || '')}">${help}</label>`;
-    }
-    return `<label class="block extra">${esc(x.label)}<textarea name="${esc(name)}" rows="3" maxlength="2000">${esc(value || '')}</textarea>${help}</label>`;
-  }
-
   function render() {
     const ev = data.event;
     const app = data.application;
@@ -89,7 +68,8 @@
     // doplňující údaje
     const extras = (ev.extras || []).filter((x) => (x.modes || ['individual', 'team']).includes(app.mode));
     $('#extras-card').hidden = !extras.length;
-    $('#extras').innerHTML = extras.map((x) => extraField(x, app.extras[x.id])).join('');
+    $('#extras').innerHTML = extras.map((x) => window.Extras.field(x, app.extras[x.id])).join('');
+    window.Extras.bindTotal($('#extras'), () => extras, $('#extras-total'));
     if (!editable) $$('#extras input, #extras select, #extras textarea').forEach((el) => { el.disabled = true; });
 
     $('#submit').hidden = !editable;
@@ -106,11 +86,7 @@
       changes.cancel = $$('[data-cancel]:checked').map((i) => i.dataset.cancel);
       changes.restore = $$('[data-restore]:checked').map((i) => i.dataset.restore);
     }
-    (data.event.extras || []).filter((x) => (x.modes || ['individual', 'team']).includes(app.mode)).forEach((x) => {
-      const name = 'x_' + x.id;
-      if (x.type === 'checkboxes') changes.extras[x.id] = $$(`[name="${name}"]:checked`, form).map((i) => i.value);
-      else changes.extras[x.id] = (form.querySelector(`[name="${name}"]`).value || '').trim();
-    });
+    changes.extras = window.Extras.read(form, (data.event.extras || []).filter((x) => (x.modes || ['individual', 'team']).includes(app.mode)));
     return changes;
   }
 

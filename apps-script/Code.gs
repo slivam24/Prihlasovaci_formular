@@ -44,7 +44,8 @@ const SHEETS = {
 const DATE_FIELDS = ['dateFrom', 'dateTo', 'deadline'];
 const EVENT_STATUSES = ['koncept', 'otevreno', 'uzavreno', 'archiv'];
 const TOURNAMENT_TYPES = ['individual', 'team'];
-const EXTRA_TYPES = ['checkboxes', 'select', 'text', 'textarea'];
+const EXTRA_TYPES = ['checkboxes', 'select', 'quantity', 'text', 'textarea'];
+const CHOICE_TYPES = ['checkboxes', 'select', 'quantity'];
 const ROLES = ['superadmin', 'organizer'];
 const CANCELLED = 'zrušeno';
 const MAX_GROUP_PLAYERS = 60;
@@ -343,9 +344,19 @@ function sanitizeEvent_(input, existingEvents, currentId) {
     const label = clean_(x.label, 200);
     if (!label) throw userError_(`Doplňující otázka č. ${i + 1}: vyplňte text otázky.`);
     const type = EXTRA_TYPES.indexOf(x.type) >= 0 ? x.type : 'text';
-    const options = (Array.isArray(x.options) ? x.options : String(x.options || '').split('\n'))
-      .map((o) => clean_(o, 100)).filter(Boolean);
-    if ((type === 'checkboxes' || type === 'select') && !options.length) {
+    const rawOptions = Array.isArray(x.options) ? x.options : String(x.options || '').split('\n');
+    const rawPrices = Array.isArray(x.prices) ? x.prices : [];
+    const options = [];
+    const prices = [];
+    rawOptions.forEach((o, j) => {
+      const name = clean_(o, 100);
+      if (!name || options.indexOf(name) >= 0) return;
+      options.push(name);
+      const p = parseFloat(String(rawPrices[j] == null ? '' : rawPrices[j]).replace(',', '.'));
+      prices.push(isNaN(p) || p < 0 ? null : Math.round(p * 100) / 100);
+    });
+    const choice = CHOICE_TYPES.indexOf(type) >= 0;
+    if (choice && !options.length) {
       throw userError_(`Otázka „${label}“: zadejte možnosti.`);
     }
     let id = x.id ? slugify_(x.id) : slugify_(label).slice(0, 30) || 'otazka';
@@ -355,7 +366,9 @@ function sanitizeEvent_(input, existingEvents, currentId) {
     return {
       id, type, label,
       help: clean_(x.help, 500),
-      options: type === 'checkboxes' || type === 'select' ? options : [],
+      options: choice ? options : [],
+      prices: choice && prices.some((p) => p != null) ? prices : [],
+      unit: type === 'quantity' ? clean_(x.unit, 20) : '',
       modes: modes.length ? modes : TOURNAMENT_TYPES.slice(),
     };
   });
@@ -565,6 +578,13 @@ function cleanExtras_(defs, raw, mode) {
       out[x.id] = (x.options || []).filter((o) => arr.indexOf(o) >= 0);
     } else if (x.type === 'select') {
       out[x.id] = (x.options || []).indexOf(String(v)) >= 0 ? String(v) : '';
+    } else if (x.type === 'quantity') {
+      const q = {};
+      (x.options || []).forEach((o) => {
+        const n = Math.min(999, Math.max(0, toInt_(v && typeof v === 'object' ? v[o] : 0)));
+        if (n) q[o] = n;
+      });
+      out[x.id] = q;
     } else {
       out[x.id] = clean_(v, 2000);
     }
@@ -669,11 +689,7 @@ function sendConfirmation_(ev, email, result) {
     });
   }
   lines.push('');
-  (ev.extras || []).forEach((x) => {
-    const v = s.extras[x.id];
-    const text = Array.isArray(v) ? v.join(', ') : v;
-    if (text) lines.push(`${x.label}: ${text}`);
-  });
+  extrasLines_(ev.extras, s.extras).forEach((l) => lines.push(l));
   lines.push('', `Číslo přihlášky: ${result.applicationId}`);
   const editUrl = editUrl_(result.editToken);
   if (editUrl) lines.push('', 'Odhlášení nebo změna ubytování a dalších údajů:', editUrl);
@@ -760,9 +776,45 @@ function applicationView_(ev, rows, now) {
   };
 }
 
-function extraText_(v) {
-  const t = Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
+function extraText_(x, v) {
+  let t;
+  if (x.type === 'quantity') {
+    t = (x.options || []).filter((o) => v && toInt_(v[o]) > 0).map((o) => `${o} × ${toInt_(v[o])}`).join(', ');
+  } else {
+    t = Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
+  }
   return t || '—';
+}
+
+function money_(n) {
+  return String(Math.round(n * 100) / 100).replace('.', ',') + ' Kč';
+}
+
+/** Cena odpovědi (obědy, ubytování…). */
+function extraPrice_(x, v) {
+  const price = (i) => (x.prices && typeof x.prices[i] === 'number' ? x.prices[i] : 0);
+  const opts = x.options || [];
+  if (x.type === 'quantity') return opts.reduce((sum, o, i) => sum + price(i) * (v && toInt_(v[o]) || 0), 0);
+  if (x.type === 'checkboxes') return opts.reduce((sum, o, i) => sum + (Array.isArray(v) && v.indexOf(o) >= 0 ? price(i) : 0), 0);
+  if (x.type === 'select') return opts.indexOf(v) >= 0 ? price(opts.indexOf(v)) : 0;
+  return 0;
+}
+
+/** Řádky doplňujících údajů do e-mailu, včetně cen a součtu. */
+function extrasLines_(defs, values) {
+  const lines = [];
+  let total = 0;
+  (defs || []).forEach((x) => {
+    const v = (values || {})[x.id];
+    if (v == null) return;
+    const text = extraText_(x, v);
+    if (text === '—') return;
+    const price = extraPrice_(x, v);
+    total += price;
+    lines.push(`${x.label}: ${text}${price ? ` (${money_(price)})` : ''}`);
+  });
+  if (total) lines.push(`Celkem za doplňky: ${money_(total)}`);
+  return lines;
 }
 
 /**
@@ -824,8 +876,8 @@ function applyApplicationChanges_(ev, appRows, eventRows, changes, now) {
     const newEx = cleanExtras_(ev.extras, changes.extras, mode);
     const diffs = (ev.extras || [])
       .filter((x) => (x.modes || TOURNAMENT_TYPES).indexOf(mode) >= 0)
-      .filter((x) => extraText_(oldEx[x.id]) !== extraText_(newEx[x.id]))
-      .map((x) => `${x.label}: ${extraText_(oldEx[x.id])} → ${extraText_(newEx[x.id])}`);
+      .filter((x) => extraText_(x, oldEx[x.id]) !== extraText_(x, newEx[x.id]))
+      .map((x) => `${x.label}: ${extraText_(x, oldEx[x.id])} → ${extraText_(x, newEx[x.id])}`);
     if (diffs.length) {
       appRows.forEach((r) => { r.extras = JSON.stringify(newEx); touch(r); });
       logs.push({ registrationId: '', action: 'změna údajů', detail: diffs.join('; ') });
@@ -866,6 +918,7 @@ function sendChangeEmails_(ev, rows, lines) {
   if (first.email) {
     const body = ['Dobrý den,', '', `ve vaší přihlášce na akci ${ev.name} byly provedeny tyto změny:`, '']
       .concat(lines.map((l) => '  ' + l), ['', 'Aktuálně přihlášení:'], state,
+        active.length ? [''].concat(extrasLines_(ev.extras, applicationExtras_(rows))) : [],
         ['', `Číslo přihlášky: ${first.applicationId}`], url ? ['', 'Další změny:', url] : []).join('\n');
     const opts = { to: first.email, subject: `Změna přihlášky – ${ev.name}`, body, name: ev.name };
     if (ev.contactEmail) opts.replyTo = ev.contactEmail;

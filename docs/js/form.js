@@ -348,29 +348,13 @@
   // ---------- doplňující otázky a režim ----------
 
   function renderExtras() {
-    $('#extras').innerHTML = (ev.extras || []).map((x) => {
-      const modes = (x.modes || ['individual', 'team']).join(' ');
-      const help = x.help ? `<span class="hint">${esc(x.help)}</span>` : '';
-      const name = 'x_' + x.id;
-      if (x.type === 'checkboxes') {
-        return `<fieldset class="extra" data-modes="${esc(modes)}"><legend>${esc(x.label)}</legend>${help}
-          ${(x.options || []).map((o) => `<label class="check"><input type="checkbox" name="${esc(name)}" value="${esc(o)}"> ${esc(o)}</label>`).join('')}
-        </fieldset>`;
-      }
-      if (x.type === 'select') {
-        return `<label class="block extra" data-modes="${esc(modes)}">${esc(x.label)}
-          <select name="${esc(name)}"><option value="">—</option>
-            ${(x.options || []).map((o) => `<option>${esc(o)}</option>`).join('')}</select>${help}
-        </label>`;
-      }
-      if (x.type === 'text') {
-        return `<label class="block extra" data-modes="${esc(modes)}">${esc(x.label)}
-          <input name="${esc(name)}" maxlength="500">${help}</label>`;
-      }
-      return `<label class="block extra" data-modes="${esc(modes)}">${esc(x.label)}
-        <textarea name="${esc(name)}" rows="3" maxlength="2000"></textarea>${help}
-      </label>`;
-    }).join('');
+    $('#extras').innerHTML = (ev.extras || []).map((x) =>
+      window.Extras.field(x, null, (x.modes || ['individual', 'team']).join(' '))).join('');
+    window.Extras.bindTotal($('#extras'), visibleExtras, $('#extras-total'));
+  }
+
+  function visibleExtras() {
+    return (ev.extras || []).filter((x) => (x.modes || ['individual', 'team']).includes(mode));
   }
 
   function applyMode() {
@@ -380,6 +364,7 @@
     $('#finder-wrap').hidden = mode !== 'individual' || !individualTournaments().length;
     $('#layout').classList.toggle('with-finder', !$('#finder-wrap').hidden);
     $$('#extras .extra').forEach((el) => { el.hidden = !el.dataset.modes.split(' ').includes(mode); });
+    $('#extras').dispatchEvent(new Event('change'));
     updateSubmitLabel();
     hideErrors();
   }
@@ -440,14 +425,7 @@
   }
 
   function collectExtras() {
-    const out = {};
-    (ev.extras || []).forEach((x) => {
-      if (!(x.modes || ['individual', 'team']).includes(mode)) return;
-      const name = 'x_' + x.id;
-      if (x.type === 'checkboxes') out[x.id] = $$(`[name="${name}"]:checked`, form).map((i) => i.value);
-      else out[x.id] = (form.querySelector(`[name="${name}"]`).value || '').trim();
-    });
-    return out;
+    return window.Extras.read(form, visibleExtras());
   }
 
   function collect() {

@@ -78,7 +78,48 @@
     return `${formatDate(from)} – ${formatDate(to)}`;
   }
 
+  // ---- doplňující otázky s cenou (obědy, ubytování…) ----
+
+  function formatMoney(n) {
+    return (Math.round(n * 100) / 100).toLocaleString('cs-CZ') + ' Kč';
+  }
+
+  function optionPrice(x, i) {
+    const p = x.prices && x.prices[i];
+    return typeof p === 'number' && !isNaN(p) ? p : null;
+  }
+
+  /** Cena odpovědi na otázku (0, když otázka nemá ceny). */
+  function extraPrice(x, v) {
+    const opts = x.options || [];
+    if (x.type === 'quantity') {
+      return opts.reduce((sum, o, i) => sum + (optionPrice(x, i) || 0) * (parseInt((v || {})[o], 10) || 0), 0);
+    }
+    if (x.type === 'checkboxes') {
+      return opts.reduce((sum, o, i) => sum + ((Array.isArray(v) && v.includes(o)) ? optionPrice(x, i) || 0 : 0), 0);
+    }
+    if (x.type === 'select') {
+      const i = opts.indexOf(v);
+      return i >= 0 ? optionPrice(x, i) || 0 : 0;
+    }
+    return 0;
+  }
+
+  /** Text odpovědi, např. „sobota × 3, neděle × 2“. */
+  function extraText(x, v) {
+    if (x.type === 'quantity') {
+      return (x.options || []).filter((o) => parseInt((v || {})[o], 10) > 0)
+        .map((o) => `${o} × ${parseInt(v[o], 10)}`).join(', ');
+    }
+    return Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
+  }
+
+  function extrasTotal(extras, values) {
+    return (extras || []).reduce((sum, x) => sum + extraPrice(x, (values || {})[x.id]), 0);
+  }
+
   const api = {
+    formatMoney, optionPrice, extraPrice, extraText, extrasTotal,
     norm, eventYear, isClosed, ruleText, eligibility, ratingWarning, samePlayer,
     tournamentLabel, STATUS_LABELS, formatDate, formatRange,
   };

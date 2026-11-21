@@ -154,3 +154,32 @@ test('úpravy pořadatelem se zaznamenají', () => {
   admin('addRegistration', { eventId: ev.id, mode: 'individual', player: player(9, 'Ručně'), tournaments: [ev.tournaments[1].id] });
   assert.equal(admin('event', { id: ev.id }).changes.at(-1).action, 'přidáno pořadatelem');
 });
+
+test('obědy a ubytování: počty kusů s cenou', () => {
+  const { gas, admin, ev } = setup({
+    extras: [
+      { label: 'Obědy', type: 'quantity', unit: 'porce', options: ['sobota', 'neděle'], prices: [130, '120,50'] },
+      { label: 'Doprava', type: 'checkboxes', options: ['tam', 'zpět'], prices: [60, null] },
+      { label: 'Poznámka', type: 'textarea' },
+    ],
+  });
+  assert.deepEqual(ev.extras[0].prices, [130, 120.5]);
+  assert.deepEqual(ev.extras[1].prices, [60, null]);
+  assert.equal(ev.extras[0].unit, 'porce');
+  const res = gas.post({ action: 'register', slug: ev.slug, mode: 'individual', email: 'a@b.cz',
+    players: [{ player: player(1, 'Alfa'), tournaments: [ev.tournaments[0].id] }],
+    extras: { obedy: { sobota: 3, 'neděle': '2', podvrh: 5 }, doprava: ['tam'] } });
+  assert.equal(res.ok, true, res.error);
+  const row = admin('event', { id: ev.id }).registrations[0];
+  assert.deepEqual(JSON.parse(row.extras).obedy, { sobota: 3, 'neděle': 2 });
+  assert.match(gas.mails[0].body, /Obědy: sobota × 3, neděle × 2 \(631 Kč\)/);
+  assert.match(gas.mails[0].body, /Doprava: tam \(60 Kč\)/);
+  assert.match(gas.mails[0].body, /Celkem za doplňky: 691 Kč/);
+  // změna přes odkaz
+  const upd = gas.post({ action: 'updateApplication', token: res.editToken, changes: { extras: { obedy: { sobota: 1 }, doprava: ['tam'] } } });
+  assert.equal(upd.ok, true, upd.error);
+  assert.deepEqual(upd.saved, ['Obědy: sobota × 3, neděle × 2 → sobota × 1']);
+  // bez možností nejde
+  assert.match(admin('saveEvent', { event: { name: 'X', dateFrom: '2099-01-01', tournaments: [{ name: 'A' }],
+    extras: [{ label: 'Obědy', type: 'quantity', options: [] }] } }).error, /zadejte možnosti/);
+});

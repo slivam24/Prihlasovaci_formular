@@ -293,3 +293,11 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 .footer a.muted { color: var(--muted); }
+
+/* doplňky s cenou */
+.price { color: var(--muted); font-size: 0.875rem; white-space: nowrap; }
+.extra-qty .qty-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-weight: 400; }
+.extra-qty .qty-name { flex: 1; }
+.extra-qty input[type="number"] { width: 80px; text-align: right; }
+.extras-total { padding: 10px 14px; border-radius: 8px; background: var(--accent-soft); }
+.extra-qty .qty-row > .small { min-width: 3.5em; }

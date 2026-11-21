@@ -53,3 +53,15 @@ test('pravidla turnajů', () => {
   assert.equal(R.formatRange('2026-05-08', '2026-05-10'), '8.–10. 5. 2026');
   assert.equal(R.eventYear({ dateFrom: '2027-01-01' }), 2027);
 });
+
+test('ceny doplňků', () => {
+  const obedy = { id: 'o', type: 'quantity', options: ['so', 'ne'], prices: [130, 120] };
+  const doprava = { id: 'd', type: 'checkboxes', options: ['tam', 'zpět'], prices: [60, null] };
+  const pokoj = { id: 'p', type: 'select', options: ['1l', '2l'], prices: [600, 450] };
+  assert.equal(R.extraPrice(obedy, { so: 2, ne: 1 }), 380);
+  assert.equal(R.extraPrice(doprava, ['tam', 'zpět']), 60);
+  assert.equal(R.extraPrice(pokoj, '2l'), 450);
+  assert.equal(R.extrasTotal([obedy, doprava, pokoj], { o: { so: 1 }, d: ['tam'], p: '1l' }), 790);
+  assert.equal(R.extraText(obedy, { ne: 2, so: 1 }), 'so × 1, ne × 2');
+  assert.equal(R.formatMoney(1234.5).replace(/\s/g, ' '), '1 234,5 Kč');
+});
