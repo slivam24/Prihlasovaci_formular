@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Přihláška na turnaj</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <p class="links small"><a href="./">← Všechny akce</a></p>
+      <h1 id="event-name">Přihláška na turnaj</h1>
+      <p id="event-meta" class="muted"></p>
+      <p id="event-intro"></p>
+      <p class="links"><a id="info-link" target="_blank" rel="noopener" hidden>Propozice</a> <a id="list-link" href="seznam.html">Seznam přihlášených</a></p>
+    </header>
+
+    <p id="loading" class="muted">Načítám…</p>
+    <div id="closed" class="card notice" hidden></div>
+
+    <form id="form" class="card" novalidate hidden>
+      <fieldset id="mode-switch" class="mode" hidden>
+        <legend>Přihlašuji</legend>
+        <label class="pill"><input type="radio" name="mode" value="individual" checked> hráče</label>
+        <label class="pill"><input type="radio" name="mode" value="team"> družstvo</label>
+      </fieldset>
+
+      <label class="block">E-mail <span class="req">*</span>
+        <input type="email" name="email" autocomplete="email" required>
+        <span class="hint">Pošleme na něj potvrzení přihlášky.</span>
+      </label>
+
+      <section id="individual" data-mode="individual">
+        <div id="player-picker"></div>
+        <fieldset class="tournaments">
+          <legend>Výběr turnajů <span class="req">*</span></legend>
+          <div id="tournament-list"></div>
+        </fieldset>
+      </section>
+
+      <section id="team" data-mode="team" hidden>
+        <fieldset id="team-tournament" class="tournaments" hidden>
+          <legend>Soutěž družstev <span class="req">*</span></legend>
+          <div id="team-tournament-list"></div>
+        </fieldset>
+        <div class="grid">
+          <label>Název družstva <span class="req">*</span><input name="teamName"></label>
+          <label>Kapitán / vedoucí družstva <span class="req">*</span><input name="teamCaptain"></label>
+        </div>
+        <div id="team-players"></div>
+      </section>
+
+      <div id="extras"></div>
+
+      <!-- past na roboty: skutečný člověk toto pole nevidí -->
+      <label class="hp" aria-hidden="true">Web<input name="web" tabindex="-1" autocomplete="off"></label>
+
+      <div id="errors" class="errors" role="alert" hidden></div>
+      <button type="submit" class="primary" id="submit">Odeslat přihlášku</button>
+      <p id="db-info" class="muted small"></p>
+    </form>
+
+    <div id="done" class="card success" hidden></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/players.js"></script>
+  <script src="js/picker.js"></script>
+  <script src="js/form.js"></script>
+</body>
+</html>

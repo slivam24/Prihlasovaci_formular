@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Správa turnajů</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="admin">
+  <header class="admin-bar">
+    <div class="admin-bar-inner">
+      <a class="brand" href="#/">Správa turnajů</a>
+      <nav id="nav" hidden>
+        <a href="#/">Akce</a>
+        <a href="#/spravci" id="nav-users" hidden>Správci</a>
+        <a href="./" target="_blank">Web ↗</a>
+      </nav>
+      <span class="spacer"></span>
+      <span id="who" class="small"></span>
+      <button type="button" id="logout" class="link" hidden>Odhlásit</button>
+    </div>
+  </header>
+  <main class="container wide" id="app"><p class="muted">Načítám…</p></main>
+  <dialog id="dialog"></dialog>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="js/api.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/players.js"></script>
+  <script src="js/picker.js"></script>
+  <script src="js/sm.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

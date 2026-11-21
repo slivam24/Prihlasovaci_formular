@@ -1,111 +1,109 @@
-# Přihlašovací formulář pro šachové turnaje
+# Přihlášky na šachové turnaje
 
-Náhrada Google formuláře pro přihlášky na šachový festival:
+Webová aplikace pro přihlašování na šachové akce. Pořadatel si v administraci zakládá akce
+(festival s více turnaji, nebo jeden samostatný turnaj) a hráči se přihlašují přes formulář
+s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro Swiss-Manager**.
 
-- **našeptávání hráčů** z listiny LOK (`lok_sm_cz.xls` z elo.miramal.com): po výběru se doplní ročník, klub, ELO ČR, FIDE, ID ČR, FIDE ID a titul,
-- ruční zadání pro neregistrované a zahraniční hráče,
+**Pro hráče**
+- přehled akcí s otevřeným přihlašováním (`index.html`),
+- přihláška na akci (`prihlaska.html?akce=<adresa>`):
+  - našeptávač z LOK doplní ročník, klub, ELO ČR, FIDE, ID, FIDE ID a titul,
+  - hráči mimo LOK se zadávají ručně,
 - **věkové podmínky turnajů se vynucují**, u limitu ELO formulář jen upozorní,
-- **přihláška družstva** jedním formulářem (kapitán + hráči na šachovnicích s našeptáváním),
-- přihlášky se ukládají do **Google Sheetu**, odesílá se potvrzovací e-mail,
-- veřejný **seznam přihlášených** seřazený podle ratingu,
-- **export pro Swiss-Manager** (`.TXT` a `.xlsx` pro každý turnaj zvlášť) ve stejném formátu jako export ze SM.
+- přihláška **družstva** jedním formulářem (kapitán + hráči na šachovnicích),
+- potvrzovací e-mail a veřejný seznam přihlášených (`seznam.html?akce=<adresa>`).
+
+**Pro pořadatele** (`admin.html`, přihlášení Google účtem)
+- zakládání a úpravy akcí: termín, uzávěrka, stav, propozice, správci,
+- turnaje v akci: jednotlivci / družstva, povolené ročníky, ELO limit, kapacita, počet šachovnic,
+- doplňující otázky podle akce (doprava, ubytování, strava, …),
+- přihlášky: zrušení / obnovení, úprava, poznámka pořadatele, ruční přidání hráče,
+- **export pro Swiss-Manager** (.TXT a .xlsx) pro každý turnaj zvlášť, export všech přihlášek do Excelu,
+- souhrn doplňujících otázek (kolik lidí chce dopravu, ubytování…),
+- **kopie akce na další rok** (posune data i ročníky),
+- **správci**: hlavní správce přidává pořadatele z dalších klubů, ti vidí jen své akce.
 
 ```
-elo.miramal.com ──(GitHub Action, každý den)──► data/players.json
-                                                      │
-hráč ──► formulář na GitHub Pages (našeptávání) ──────┘
-              │
-              ▼
-     Google Apps Script ──► Google Sheet „Přihlášky“
-                                  │
-                                  ▼
-            menu „Šachový festival“ → Export pro Swiss-Manager (.TXT / .xlsx)
+elo.miramal.com ──(GitHub Action, denně)──► data/players.json ──► našeptávač
+                                                                   │
+hráč / pořadatel ──► web na GitHub Pages ◄─────────────────────────┘
+                          │  (JSON API)
+                          ▼
+            Google Apps Script ──► Google Sheet (listy Akce, Turnaje, Přihlášky, Správci)
 ```
 
 ## Struktura
 
 | Cesta | Co to je |
 |---|---|
-| `docs/` | web (GitHub Pages): `index.html` formulář, `seznam.html` seznam přihlášených |
-| `docs/config.json` | **veškeré nastavení festivalu**: turnaje, ročníky, doprava, ubytování, uzávěrka |
+| `docs/` | web (GitHub Pages): `index.html`, `prihlaska.html`, `seznam.html`, `admin.html` |
+| `docs/config.json` | adresa backendu (`apiUrl`), Google Client ID, věkové kategorie pro export |
+| `docs/js/` | `players.js` (našeptávač), `picker.js` (výběr hráče), `rules.js` (pravidla turnajů), `sm.js` (export SM), `admin.js` … |
+| `apps-script/Code.gs` | backend: API, databáze nad Google Sheetem, e-maily, ověření přihlášení |
 | `scripts/convert_lok.py` | převod `lok_sm_cz.xls` → `docs/data/players.json` |
 | `.github/workflows/web.yml` | testy, stažení LOK a nasazení webu (při změně v `main` a každý den) |
-| `apps-script/Code.gs` | Google Apps Script: ukládání přihlášek, seznam, e-maily, export pro SM |
-| `tests/` | testy (`node --test tests/*.test.js`) |
+| `tests/` | testy + simulace Google služeb (`gas-mock.js`) + vývojový server |
 
 ## Zprovoznění (jednou)
 
 ### 1. Web na GitHub Pages
+1. Na GitHubu otevřete **Settings → Pages → Source: GitHub Actions**.
+2. Spusťte **Actions → „Web a listina LOK“ → Run workflow**.
+3. Web poběží na `https://<uživatel>.github.io/Prihlasovaci_formular/`. Listina LOK se pak aktualizuje každý den.
 
-1. V repozitáři na GitHubu: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-2. **Actions → „Web a listina LOK“ → Run workflow** (nebo jakýkoli push do `main`).
-3. Web poběží na `https://<uživatel>.github.io/Prihlasovaci_formular/`.
+### 2. Přihlašování Googlem (Client ID)
+1. V [Google Cloud Console](https://console.cloud.google.com/) založte projekt, např. „Přihlášky šachy“.
+2. **APIs & Services → OAuth consent screen**:
+   - typ *External*, vyplňte název aplikace a e-mail,
+   - žádné další oprávnění nepřidávejte,
+   - aplikaci přepněte na *In production*. Pro samotné přihlášení Google ověření aplikace nevyžaduje.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - typ *Web application*,
+   - do **Authorized JavaScript origins** zadejte `https://<uživatel>.github.io`, pro lokální vývoj i `http://localhost:8000`.
+4. Zkopírujte **Client ID** (končí `.apps.googleusercontent.com`).
 
-Listina LOK se pak stahuje sama každý den. Když se stažení nepovede, zůstane poslední verze
-a GitHub pošle e-mail o neúspěšném běhu.
+### 3. Google Sheet a Apps Script (backend)
+1. Založte nový Google Sheet, např. „Přihlášky – databáze“. Tabulku nikomu nesdílejte, je to databáze.
+2. **Rozšíření → Apps Script**:
+   - obsah `Code.gs` nahraďte souborem `apps-script/Code.gs`,
+   - v **Nastavení projektu** zapněte „Zobrazit soubor manifestu appsscript.json“ a vložte obsah `apps-script/appsscript.json`.
+3. Uložte, vraťte se do tabulky a obnovte stránku. Objeví se menu **Turnaje**.
+4. Spusťte **Turnaje → Nastavení**:
+   - Google si vyžádá oprávnění (tabulka, odesílání e-mailů, externí požadavky),
+   - zadejte Client ID z kroku 2 a adresu webu,
+   - váš účet se stane **hlavním správcem**.
+5. V editoru Apps Script zvolte **Nasadit → Nové nasazení → Webová aplikace**:
+   - „Spustit jako: **já**“, „Kdo má přístup: **kdokoli**“,
+   - zkopírujte adresu končící `/exec`.
+6. Do `docs/config.json` vyplňte `"apiUrl"` (adresa `/exec`) a `"googleClientId"` a commitněte do `main`.
+7. Volitelně: **Turnaje → Založit ukázkovou akci (Chlumec 2026)**.
 
-### 2. Google Sheet a Apps Script
+> Po každé změně `Code.gs`: **Nasadit → Spravovat nasazení → Upravit → Verze: Nová verze**.
+> Adresa `/exec` zůstane stejná.
 
-1. Založte nový Google Sheet (např. „Přihlášky Chlumec 2026“).
-2. **Rozšíření → Apps Script**. Obsah `Code.gs` nahraďte souborem `apps-script/Code.gs`.
-   V **Nastavení projektu** zaškrtněte „Zobrazit soubor manifestu appsscript.json“ a vložte obsah `apps-script/appsscript.json`.
-3. Uložte, vraťte se do tabulky a obnovte stránku – objeví se menu **Šachový festival**.
-4. **Šachový festival → Nastavit adresu konfigurace** a zadejte
-   `https://<uživatel>.github.io/Prihlasovaci_formular/config.json`.
-   Google si poprvé vyžádá oprávnění (tabulka, Drive, odesílání e-mailů, načtení URL).
-5. V editoru Apps Script: **Nasadit → Nové nasazení → Webová aplikace**,
-   „Spustit jako: **já**“, „Přístup: **kdokoli**“. Zkopírujte adresu končící `/exec`.
-6. Adresu vložte do `docs/config.json` jako `"appsScriptUrl"` a commitněte do `main`.
+### Přidání pořadatele z jiného klubu
+V administraci otevřete **Správci → Přidat správce** a zadejte jeho Google účet s rolí *pořadatel*.
+Pořadatel vidí a upravuje jen akce, které sám založil nebo u kterých je uveden v poli „Další správci akce“.
 
-> Při změně `Code.gs` je potřeba **Nasadit → Spravovat nasazení → Upravit → Nová verze**,
-> jinak web dál volá starou verzi. Adresa `/exec` zůstane stejná.
+## Export pro Swiss-Manager
+U každého turnaje v administraci jsou tlačítka **.TXT** a **.xlsx**. Formát je stejný jako export ze SM:
+- UTF-8, středníky, CRLF,
+- sloupce `Č.;Jméno;Titul;ID č.;Rating nár;Rating FIDE;Narozen; Fed;Pohl.;Typ;Sk.;Č.klubu;Klub;FIDE ID;…;surname;first name;atitle`,
+- `Narozen` jako `00.00.RRRR`,
+- `Typ` je věková kategorie podle roku akce (U12/U15/U18/U20/S60, nastavitelné v `config.json`) a u hráčů mimo LOK navíc `N`,
+- `Sk.` se převezme z LOK,
+- řádky jsou seřazené podle FIDE a pak ELO ČR.
 
-## Nastavení festivalu – `docs/config.json`
-
-```jsonc
-"festival": {
-  "name": "Šachový festival Chlumec okr. Ústí n. L. 2026",
-  "year": 2026,              // podle něj se počítají kategorie U12…S60
-  "deadline": "2026-05-02",  // po tomto dni se formulář zavře ("" = bez uzávěrky)
-  "contactEmail": ""         // kam půjdou odpovědi na potvrzovací e-mail
-},
-"tournaments": [
-  { "code": "zaci", "short": "Mladší žáci", "day": "sobota", "name": "…", "type": "individual",
-    "minBirthYear": 2014 },                          // vynucuje se
-  { "code": "neregistrovani", "short": "…", "maxBirthYear": 2013,
-    "warnMaxRating": 1100 },                         // jen upozornění
-  { "code": "druzstva", "type": "team", "boards": 4, "reserves": 1 }
-]
-```
-
-Další volitelné položky turnaje: `capacity` (maximální počet hráčů / družstev).
-Doplňky (`extras`) mohou být `checkboxes`, `select` nebo `textarea`; `modes` určuje,
-jestli se ukazují u jednotlivců (`individual`), družstev (`team`) nebo obou.
-
-**Během přihlašování neměňte `short` u turnajů a doplňků** – jsou to názvy sloupců v tabulce.
-Nový turnaj nebo doplněk si tabulka přidá jako nový sloupec sama.
-
-Pro nový ročník stačí upravit `config.json` (rok, ročníky, uzávěrka) a založit novou tabulku
-s Apps Scriptem (nebo v té staré smazat řádky).
-
-## Pro pořadatele
-
-- **Tabulka „Přihlášky“**: jeden řádek za hráče, turnaje jako sloupce `ANO`.
-  U družstva je jeden řádek za každého hráče (sloupce Družstvo, Šachovnice, Kapitán).
-- **Zrušení přihlášky**: do sloupce **Stav** napište `zrušeno` – řádek zmizí ze seznamu i exportu.
-- **Šachový festival → Export pro Swiss-Manager**: pro každý turnaj vytvoří na Disku
-  `kod.TXT` a tabulku (ke stažení jako `.xlsx`). Sloupce jsou stejné jako v exportu ze SM:
-  - `Jméno`, `surname`, `first name`, `ID č.`, `Rating nár`, `Rating FIDE`, `FIDE ID`, `Titul`, `Klub`, `Č.klubu`, `Sk.` z LOK,
-  - `Narozen` jako `00.00.RRRR`, `Typ` = věková kategorie (U12/U15/U18/U20/S60) a u hráčů mimo LOK navíc `N`,
-  - seřazeno podle ratingu FIDE a pak ELO ČR.
-  - Družstva se exportují jako `druzstva_soupisky.TXT` (sloupce SM + Družstvo, Šachovnice, Kapitán).
-- **Šachový festival → Souhrn turnajů, dopravy a ubytování**: list „Souhrn“ s počty a jmény.
+Družstva se exportují jako soupisky: sloupce SM a navíc Družstvo, Šachovnice a Kapitán.
 
 ## Vývoj lokálně
 
 ```bash
 pip install xlrd==2.0.1
 python scripts/convert_lok.py --download docs/data/players.json   # nebo --input lok_sm_cz.xls
-python -m http.server -d docs 8000                                   # http://localhost:8000
-node --test tests/*.test.js
+node tests/dev-server.js 8000      # web + backend v paměti, http://localhost:8000
+node --test tests/*.test.js        # testy
 ```
+
+Vývojový server spouští skutečný `Code.gs` nad simulovanou tabulkou a založí ukázkovou akci.
+Do administrace se přihlásíte bez Googlu (účet `owner@example.cz`).

@@ -1,105 +1,74 @@
-/* Přihlašovací formulář – logika stránky index.html. */
+/* Přihláška na akci – stránka prihlaska.html?akce=<adresa akce>. */
 (function () {
   'use strict';
 
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
   const esc = window.escapeHtml;
+  const R = window.Rules;
 
   const form = $('#form');
-  let cfg = null;
+  const slug = window.Api.param('akce') || '';
+  let ev = null;
   let db = null;
   let dbFailed = false;
   let mode = 'individual';
   let playerPicker = null;
   let teamPickers = [];
 
-  // ---------- pomocné funkce ----------
-
-  function isClosed(config) {
-    const d = config.festival && config.festival.deadline;
-    if (!d) return false;
-    const end = new Date(d.includes('T') ? d : d + 'T23:59:59');
-    return !isNaN(end) && new Date() > end;
-  }
-
-  function ruleText(t) {
-    const parts = [];
-    if (t.minBirthYear) parts.push(`ročník ${t.minBirthYear} a mladší`);
-    if (t.maxBirthYear) parts.push(`ročník ${t.maxBirthYear} a starší`);
-    if (t.warnMaxRating) parts.push(`ELO do ${t.warnMaxRating}`);
-    return parts.join(', ');
-  }
-
-  function eligibility(t, p) {
-    if (!p || !p.year) return '';
-    if (t.minBirthYear && p.year < t.minBirthYear) return `jen pro ročník ${t.minBirthYear} a mladší`;
-    if (t.maxBirthYear && p.year > t.maxBirthYear) return `jen pro ročník ${t.maxBirthYear} a starší`;
-    return '';
-  }
-
-  function ratingWarning(t, p) {
-    if (!t.warnMaxRating || !p) return '';
-    const r = Math.max(p.rn || 0, p.rf || 0);
-    if (r <= t.warnMaxRating) return '';
-    return `Pozor: hráč má ${p.rn ? 'ELO ČR ' + p.rn : ''}${p.rn && p.rf ? ' / ' : ''}${p.rf ? 'FIDE ' + p.rf : ''}, ` +
-      `turnaj je určen pro hráče do ELO ${t.warnMaxRating}. Přihlášku posoudí pořadatel.`;
-  }
-
-  function samePlayer(a, b) {
-    if (a.id && b.id) return a.id === b.id;
-    return window.Players.norm(a.surname + ' ' + a.firstName) === window.Players.norm(b.surname + ' ' + b.firstName) &&
-      a.year === b.year;
-  }
-
-  const individualTournaments = () => cfg.tournaments.filter((t) => t.type !== 'team');
-  const teamTournaments = () => cfg.tournaments.filter((t) => t.type === 'team');
-  const tournamentLabel = (t) => (t.day ? `${t.day} – ` : '') + t.name;
+  const individualTournaments = () => ev.tournaments.filter((t) => t.type !== 'team');
+  const teamTournaments = () => ev.tournaments.filter((t) => t.type === 'team');
 
   // ---------- vykreslení ----------
 
   function renderHeader() {
-    const f = cfg.festival || {};
-    document.title = 'Přihláška – ' + (f.name || 'turnaj');
-    $('#festival-name').textContent = f.name || 'Přihláška na turnaj';
-    $('#festival-intro').textContent = f.intro || '';
-    if (f.infoUrl) {
+    document.title = 'Přihláška – ' + ev.name;
+    $('#event-name').textContent = ev.name;
+    const meta = [R.formatRange(ev.dateFrom, ev.dateTo), ev.place].filter(Boolean);
+    if (ev.deadline) meta.push('přihlášky do ' + R.formatDate(ev.deadline));
+    $('#event-meta').textContent = meta.join(' · ');
+    $('#event-intro').textContent = ev.intro || '';
+    $('#list-link').href = 'seznam.html?akce=' + encodeURIComponent(ev.slug);
+    if (ev.infoUrl) {
       const a = $('#info-link');
-      a.href = f.infoUrl;
-      a.textContent = 'Informace: ' + f.infoUrl.replace(/^https?:\/\//, '');
+      a.href = ev.infoUrl;
       a.hidden = false;
     }
   }
 
   function renderTournaments() {
     $('#tournament-list').innerHTML = individualTournaments().map((t) => `
-      <label class="tournament" data-code="${esc(t.code)}">
-        <input type="checkbox" name="t" value="${esc(t.code)}">
+      <label class="tournament" data-id="${esc(t.id)}">
+        <input type="checkbox" name="t" value="${esc(t.id)}">
         <span class="t-body">
-          <span class="t-name">${esc(tournamentLabel(t))}</span>
-          ${ruleText(t) ? `<span class="t-rule">${esc(ruleText(t))}</span>` : ''}
+          <span class="t-name">${esc(R.tournamentLabel(t))}</span>
+          ${R.ruleText(t) ? `<span class="t-rule">${esc(R.ruleText(t))}</span>` : ''}
           <span class="t-block" hidden></span>
           <span class="t-warn" hidden></span>
         </span>
       </label>`).join('');
     $$('#tournament-list input').forEach((i) => i.addEventListener('change', updateEligibility));
+    // jen jeden turnaj = rovnou zaškrtnout
+    if (individualTournaments().length === 1) $('#tournament-list input').checked = true;
 
     const teams = teamTournaments();
+    $('#individual').dataset.available = individualTournaments().length ? '1' : '';
     if (!teams.length) return;
-    $('#mode-switch').hidden = false;
+    $('#mode-switch').hidden = !individualTournaments().length;
+    if (!individualTournaments().length) form.querySelector('[name="mode"][value="team"]').checked = true;
     $('#team-tournament').hidden = teams.length < 2;
     $('#team-tournament-list').innerHTML = teams.map((t, i) => `
       <label class="tournament">
-        <input type="radio" name="teamTournament" value="${esc(t.code)}" ${i === 0 ? 'checked' : ''}>
-        <span class="t-body"><span class="t-name">${esc(tournamentLabel(t))}</span></span>
+        <input type="radio" name="teamTournament" value="${esc(t.id)}" ${i === 0 ? 'checked' : ''}>
+        <span class="t-body"><span class="t-name">${esc(R.tournamentLabel(t))}</span></span>
       </label>`).join('');
     $$('#team-tournament-list input').forEach((i) => i.addEventListener('change', renderTeamPlayers));
     renderTeamPlayers();
   }
 
   function currentTeamTournament() {
-    const code = (form.querySelector('[name="teamTournament"]:checked') || {}).value;
-    return teamTournaments().find((t) => t.code === code) || teamTournaments()[0];
+    const id = (form.querySelector('[name="teamTournament"]:checked') || {}).value;
+    return teamTournaments().find((t) => t.id === id) || teamTournaments()[0];
   }
 
   function renderTeamPlayers() {
@@ -111,7 +80,7 @@
     teamPickers = [];
     const title = document.createElement('h2');
     title.className = 'section-title';
-    title.textContent = `${tournamentLabel(t)}${ruleText(t) ? ' (' + ruleText(t) + ')' : ''}`;
+    title.textContent = R.tournamentLabel(t) + (R.ruleText(t) ? ` (${R.ruleText(t)})` : '');
     box.appendChild(title);
     for (let i = 0; i < boards + reserves; i++) {
       const el = document.createElement('div');
@@ -130,7 +99,7 @@
   }
 
   function renderExtras() {
-    $('#extras').innerHTML = (cfg.extras || []).map((x) => {
+    $('#extras').innerHTML = (ev.extras || []).map((x) => {
       const modes = (x.modes || ['individual', 'team']).join(' ');
       const help = x.help ? `<span class="hint">${esc(x.help)}</span>` : '';
       const name = 'x_' + x.id;
@@ -141,9 +110,13 @@
       }
       if (x.type === 'select') {
         return `<label class="block extra" data-modes="${esc(modes)}">${esc(x.label)}
-          <select name="${esc(name)}"><option value="">${esc(x.emptyLabel || '—')}</option>
+          <select name="${esc(name)}"><option value="">—</option>
             ${(x.options || []).map((o) => `<option>${esc(o)}</option>`).join('')}</select>${help}
         </label>`;
+      }
+      if (x.type === 'text') {
+        return `<label class="block extra" data-modes="${esc(modes)}">${esc(x.label)}
+          <input name="${esc(name)}" maxlength="500">${help}</label>`;
       }
       return `<label class="block extra" data-modes="${esc(modes)}">${esc(x.label)}
         <textarea name="${esc(name)}" rows="3" maxlength="2000"></textarea>${help}
@@ -163,16 +136,16 @@
   function updateEligibility() {
     const p = playerPicker.getValue();
     individualTournaments().forEach((t) => {
-      const label = $(`.tournament[data-code="${CSS.escape(t.code)}"]`);
+      const label = $(`.tournament[data-id="${CSS.escape(t.id)}"]`);
       const input = label.querySelector('input');
-      const block = eligibility(t, p);
+      const block = R.eligibility(t, p);
       input.disabled = !!block;
       if (block) input.checked = false;
       label.classList.toggle('disabled', !!block);
       const b = label.querySelector('.t-block');
       b.hidden = !block;
       b.textContent = block ? `Nelze vybrat – turnaj je ${block}.` : '';
-      const warn = input.checked ? ratingWarning(t, p) : '';
+      const warn = input.checked ? R.ratingWarning(t, p) : '';
       const w = label.querySelector('.t-warn');
       w.hidden = !warn;
       w.textContent = warn;
@@ -193,9 +166,8 @@
 
   function validate() {
     const errors = [];
-    const year = Number(cfg.festival.year) || new Date().getFullYear();
-    const email = form.email.value.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Vyplňte platný e-mail.');
+    const year = R.eventYear(ev);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.value.trim())) errors.push('Vyplňte platný e-mail.');
 
     if (mode === 'individual') {
       const err = playerPicker.validate(year);
@@ -205,8 +177,8 @@
       const p = playerPicker.getValue();
       if (p) {
         chosen.forEach((i) => {
-          const t = individualTournaments().find((x) => x.code === i.value);
-          const block = eligibility(t, p);
+          const t = individualTournaments().find((x) => x.id === i.value);
+          const block = R.eligibility(t, p);
           if (block) errors.push(`Turnaj „${t.short || t.name}“ je ${block}.`);
         });
       }
@@ -220,9 +192,9 @@
         const err = pk.validate(year);
         if (err) { errors.push(err); return; }
         const p = pk.getValue();
-        const block = eligibility(t, p);
+        const block = R.eligibility(t, p);
         if (block) errors.push(`${p.name}: soutěž je ${block}.`);
-        if (seen.some((s) => samePlayer(s, p))) errors.push(`${p.name} je v družstvu uveden dvakrát.`);
+        if (seen.some((s) => R.samePlayer(s, p))) errors.push(`${p.name} je v družstvu uveden dvakrát.`);
         seen.push(p);
       });
     }
@@ -231,9 +203,8 @@
 
   function collectExtras() {
     const out = {};
-    (cfg.extras || []).forEach((x) => {
-      const modes = x.modes || ['individual', 'team'];
-      if (!modes.includes(mode)) return;
+    (ev.extras || []).forEach((x) => {
+      if (!(x.modes || ['individual', 'team']).includes(mode)) return;
       const name = 'x_' + x.id;
       if (x.type === 'checkboxes') out[x.id] = $$(`[name="${name}"]:checked`, form).map((i) => i.value);
       else out[x.id] = (form.querySelector(`[name="${name}"]`).value || '').trim();
@@ -242,13 +213,13 @@
   }
 
   function collect() {
-    const base = { mode, email: form.email.value.trim(), extras: collectExtras(), web: form.web.value };
+    const base = { slug: ev.slug, mode, email: form.email.value.trim(), extras: collectExtras(), web: form.web.value };
     if (mode === 'individual') {
       base.player = playerPicker.getValue();
       base.tournaments = $$('#tournament-list input:checked').map((i) => i.value);
     } else {
       base.team = {
-        tournament: currentTeamTournament().code,
+        tournamentId: currentTeamTournament().id,
         name: form.teamName.value.trim(),
         captain: form.teamCaptain.value.trim(),
         players: teamPickers.map((pk) => (pk.reserve && pk.isEmpty() ? null : pk.getValue())),
@@ -258,26 +229,25 @@
   }
 
   function showDone(res, payload) {
-    const done = $('#done');
-    const tName = (code) => {
-      const t = cfg.tournaments.find((x) => x.code === code);
-      return t ? tournamentLabel(t) : code;
+    const tName = (id) => {
+      const t = ev.tournaments.find((x) => x.id === id);
+      return t ? R.tournamentLabel(t) : id;
     };
     let what;
     if (payload.mode === 'team') {
       const players = payload.team.players.filter(Boolean).map((p) => esc(p.name)).join(', ');
-      what = `<p>Družstvo <strong>${esc(payload.team.name)}</strong> (${players})<br>${esc(tName(payload.team.tournament))}</p>`;
+      what = `<p>Družstvo <strong>${esc(payload.team.name)}</strong> (${players})<br>${esc(tName(payload.team.tournamentId))}</p>`;
     } else {
-      what = `<p><strong>${esc(payload.player.name)}</strong></p><ul>${payload.tournaments.map((c) => `<li>${esc(tName(c))}</li>`).join('')}</ul>`;
+      what = `<p><strong>${esc(payload.player.name)}</strong></p><ul>${payload.tournaments.map((id) => `<li>${esc(tName(id))}</li>`).join('')}</ul>`;
     }
+    const done = $('#done');
     done.innerHTML = `
       <h2>Přihláška byla odeslána ✓</h2>
       ${what}
-      <p class="muted">Číslo přihlášky: <strong>${esc(res.id || '')}</strong>.
-        ${cfg.confirmationEmail !== false ? `Potvrzení jsme poslali na ${esc(payload.email)}.` : ''}</p>
+      <p class="muted">Číslo přihlášky: <strong>${esc(res.id || '')}</strong>. Potvrzení jsme poslali na ${esc(payload.email)}.</p>
       <p class="actions">
         <button type="button" class="primary" id="another">Přihlásit dalšího ${payload.mode === 'team' ? 'účastníka' : 'hráče'}</button>
-        <a class="button" href="seznam.html">Seznam přihlášených</a>
+        <a class="button" href="seznam.html?akce=${encodeURIComponent(ev.slug)}">Seznam přihlášených</a>
       </p>`;
     done.hidden = false;
     form.hidden = true;
@@ -295,8 +265,10 @@
     const keepMode = mode;
     form.reset();
     form.email.value = email;
-    form.querySelector(`[name="mode"][value="${keepMode}"]`).checked = true;
+    const radio = form.querySelector(`[name="mode"][value="${keepMode}"]`);
+    if (radio) radio.checked = true;
     playerPicker.reset();
+    if (individualTournaments().length === 1) $('#tournament-list input').checked = true;
     if (teamTournaments().length) renderTeamPlayers();
     applyMode();
     updateEligibility();
@@ -307,27 +279,16 @@
     hideErrors();
     const errors = validate();
     if (errors.length) { showErrors(errors); return; }
-    if (!cfg.appsScriptUrl) {
-      showErrors(['Formulář zatím není propojený s tabulkou přihlášek (v config.json chybí appsScriptUrl).']);
-      return;
-    }
     const payload = collect();
     const btn = $('#submit');
     const label = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Odesílám…';
     try {
-      const res = await fetch(cfg.appsScriptUrl, {
-        method: 'POST',
-        // text/plain = bez CORS preflightu, který Apps Script neumí
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!data.ok) showErrors([data.error || 'Přihlášku se nepodařilo uložit.']);
-      else showDone(data, payload);
+      const res = await window.Api.post('register', payload);
+      showDone(res, payload);
     } catch (err) {
-      showErrors(['Přihlášku se nepodařilo odeslat. Zkontrolujte připojení k internetu a zkuste to znovu.']);
+      showErrors([err.message]);
     } finally {
       btn.disabled = false;
       btn.textContent = label;
@@ -354,16 +315,19 @@
   }
 
   async function init() {
+    if (!slug) { location.replace('./'); return; }
     try {
-      const res = await fetch('config.json', { cache: 'no-cache' });
-      cfg = await res.json();
+      ev = (await window.Api.get('event', { slug })).event;
     } catch (err) {
-      $('#closed').textContent = 'Formulář se nepodařilo načíst (chyba v config.json).';
+      $('#loading').hidden = true;
+      $('#closed').textContent = err.message;
       $('#closed').hidden = false;
       return;
     }
+    $('#loading').hidden = true;
     renderHeader();
-    if (isClosed(cfg)) {
+    if (R.isClosed(ev)) {
+      $('#closed').textContent = 'Přihlašování na tuto akci je uzavřeno.';
       $('#closed').hidden = false;
       return;
     }

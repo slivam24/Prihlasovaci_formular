@@ -9,13 +9,16 @@
 <body>
   <main class="container wide">
     <header class="hero">
-      <h1 id="festival-name">Seznam přihlášených</h1>
-      <p class="links"><a href="./">← Přihlašovací formulář</a></p>
+      <p class="links small"><a href="./">← Všechny akce</a></p>
+      <h1 id="event-name">Seznam přihlášených</h1>
+      <p class="links"><a id="form-link" href="./">Přihlašovací formulář</a></p>
     </header>
     <p id="status" class="muted">Načítám seznam…</p>
     <nav id="toc" class="toc" hidden></nav>
     <div id="lists"></div>
   </main>
+  <script src="js/api.js"></script>
+  <script src="js/rules.js"></script>
   <script src="js/picker.js"></script>
   <script src="js/seznam.js"></script>
 </body>
