@@ -61,12 +61,21 @@
   async function init() {
     const slug = window.Api.param('akce');
     if (!slug) { location.replace('./'); return; }
+    // poslední známý seznam hned, aktuální po načtení
+    const cached = window.Api.cacheRead('list:' + slug, 7 * 864e5);
+    if (cached) {
+      render(cached);
+      document.getElementById('loading').hidden = true;
+      $('#status').textContent += ' Aktualizuji…';
+    }
     try {
-      render(await window.Api.get('list', { slug }));
+      const data = await window.Api.get('list', { slug });
+      window.Api.cacheWrite('list:' + slug, data);
+      render(data);
       document.getElementById('loading').hidden = true;
     } catch (e) {
       document.getElementById('loading').hidden = true;
-      $('#status').textContent = 'Seznam se nepodařilo načíst: ' + e.message;
+      if (!cached) $('#status').textContent = 'Seznam se nepodařilo načíst: ' + e.message;
     }
   }
 

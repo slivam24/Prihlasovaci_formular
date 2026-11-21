@@ -42,7 +42,15 @@
       (closed.length ? '<h2 class="section-title">Uzavřené přihlašování</h2>' + closed.map(card).join('') : '');
   }
 
+  // listinu hráčů (0,5 MB) stáhneme na pozadí, aby byl formulář po kliknutí hned připravený
+  function prefetchPlayers() {
+    const go = () => fetch('data/players.json').catch(() => {});
+    if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 3000 });
+    else setTimeout(go, 1500);
+  }
+
   async function init() {
+    prefetchPlayers();
     const cached = window.Api.cacheRead('events', 7 * DAY);
     if (cached) render(cached);
     try {

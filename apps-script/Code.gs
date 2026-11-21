@@ -72,7 +72,7 @@ function doGet(e) {
       if (!hit) throw userError_('Akce nebyla nalezena.', 'not_found');
       return { event: hit };
     }
-    if (p.action === 'list') return publicList_(loadEventBySlug_(p.slug, true));
+    if (p.action === 'list') return cached_('list:' + p.slug, 600, () => publicList_(loadEventBySlug_(p.slug, true)));
     if (p.action === 'application') {
       const app = findApplication_(p.token);
       return applicationView_(app.ev, app.rows, new Date());
@@ -190,17 +190,20 @@ function insert_(key, objs) {
   if (need > 0) t.sh.insertRowsAfter(t.sh.getMaxRows(), need);
   t.sh.getRange(start, 1, objs.length, t.headers.length).setValues(objs.map((o) => toCells_(t, o)));
   objs.forEach((o, i) => t.rows.push(Object.assign({}, o, { _row: start + i })));
+  bumpVersion_();
 }
 
 function update_(key, obj) {
   const t = table_(key);
   t.sh.getRange(obj._row, 1, 1, t.headers.length).setValues([toCells_(t, obj)]);
+  bumpVersion_();
 }
 
 function remove_(key, objs) {
   const t = table_(key);
   objs.map((o) => o._row).sort((a, b) => b - a).forEach((r) => t.sh.deleteRow(r));
   delete DB_CACHE_[key];
+  bumpVersion_();
 }
 
 // =====================================================================
@@ -272,22 +275,42 @@ function publicEvent_(ev) {
   return out;
 }
 
-const PUBLIC_EVENTS_CACHE_ = 'public_events_v1';
+// ---- mezipaměť odpovědí: platí do další změny dat (každý zápis zvýší verzi) ----
 
-/** Veřejné akce z cache (rychlé načtení webu); smaže se při každé úpravě akce. */
-function cachedPublicEvents_() {
+function dataVersion_() {
   const cache = CacheService.getScriptCache();
-  const hit = cache.get(PUBLIC_EVENTS_CACHE_);
+  let v = cache.get('data_ver');
+  if (!v) {
+    v = String(Date.now());
+    cache.put('data_ver', v, 21600);
+  }
+  return v;
+}
+
+function bumpVersion_() {
+  CacheService.getScriptCache().put('data_ver', Date.now() + '-' + Math.random().toString(36).slice(2, 7), 21600);
+}
+
+function cached_(key, ttl, fn) {
+  const cache = CacheService.getScriptCache();
+  const k = key + '@' + dataVersion_();
+  const hit = cache.get(k);
   if (hit) return JSON.parse(hit);
-  const events = listPublicEvents_();
+  const value = fn();
   try {
-    cache.put(PUBLIC_EVENTS_CACHE_, JSON.stringify(events), 600);
-  } catch (e) { /* příliš velké pro cache – nevadí */ }
-  return events;
+    const text = JSON.stringify(value);
+    if (text.length < 95000) cache.put(k, text, ttl);
+  } catch (e) { /* příliš velké – nevadí */ }
+  return value;
+}
+
+/** Veřejné akce z mezipaměti (rychlé načtení webu). */
+function cachedPublicEvents_() {
+  return cached_('events', 600, listPublicEvents_);
 }
 
 function clearPublicCache_() {
-  CacheService.getScriptCache().remove(PUBLIC_EVENTS_CACHE_);
+  bumpVersion_();
 }
 
 function listPublicEvents_() {

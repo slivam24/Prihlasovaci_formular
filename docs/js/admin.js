@@ -11,6 +11,8 @@
   const TOKEN_KEY = 'adminIdToken';
 
   let cfg = {};
+  // Data už jednou načtená v této záložce: stránka se ukáže hned a na pozadí se obnoví.
+  const memo = { events: null, event: {} };
   let pendingImport = null; // akce načtená z importu, čeká na otevření v editoru
   let me = null;
   let playerDb = null;
@@ -190,8 +192,16 @@
   // =====================================================================
 
   async function viewEvents() {
-    loading('Načítám akce…');
+    const here = location.hash || '#/';
+    if (memo.events) renderEvents(memo.events);
+    else loading('Načítám akce…');
     const data = await call('events');
+    const changed = !memo.events || JSON.stringify(data.events) !== JSON.stringify(memo.events.events);
+    memo.events = data;
+    if (changed && (location.hash || '#/') === here && !dialog.open) renderEvents(data);
+  }
+
+  function renderEvents(data) {
     me = data.user;
     updateBar();
     const rows = data.events.map((ev) => `<tr>
@@ -664,10 +674,20 @@
   let showCancelled = false;
   let showAllChanges = false;
 
+  /** Detail akce z paměti hned, čerstvá data z serveru po jejich příchodu. */
+  async function loadEventData(id, render) {
+    const here = location.hash;
+    const cached = memo.event[id];
+    if (cached) render(cached, true);
+    const data = await call('event', { id });
+    const changed = !cached || JSON.stringify(data) !== JSON.stringify(cached);
+    memo.event[id] = data;
+    if (changed && location.hash === here && !dialog.open) render(data, false);
+  }
+
   async function viewEvent(id) {
-    loading('Načítám přihlášky…');
-    current = await call('event', { id });
-    renderEvent();
+    if (!memo.event[id]) loading('Načítám přihlášky…');
+    await loadEventData(id, (data) => { current = data; renderEvent(); });
   }
 
   function extrasText(r) {
@@ -1094,14 +1114,18 @@
   let pay = null; // { event, registrations, receipts, items, filter, selected:Set }
 
   async function viewPayments(id) {
-    loading('Načítám platby…');
-    const data = await call('event', { id });
-    pay = {
-      event: data.event, registrations: data.registrations, receipts: data.receipts || [],
-      filter: { club: '', q: '', category: '', state: 'unpaid' }, selected: new Set(),
-    };
-    pay.items = window.Payments.buildItems(pay.event, pay.registrations);
-    renderPayments();
+    if (!memo.event[id]) loading('Načítám platby…');
+    const keep = pay && pay.event.id === id ? { filter: pay.filter, selected: pay.selected } : null;
+    await loadEventData(id, (data) => {
+      const prev = pay && pay.event.id === id ? pay : keep;
+      pay = {
+        event: data.event, registrations: data.registrations, receipts: data.receipts || [],
+        filter: prev ? prev.filter : { club: '', q: '', category: '', state: 'unpaid' },
+        selected: prev ? prev.selected : new Set(),
+      };
+      pay.items = window.Payments.buildItems(pay.event, pay.registrations);
+      if (/\/platby$/.test(location.hash)) renderPayments();
+    });
   }
 
   function payFiltered() {
@@ -1133,7 +1157,10 @@
     app.innerHTML = `
       <p class="small"><a href="#/akce/${esc(ev.id)}">← ${esc(ev.name)}</a></p>
       <div class="page-head"><h1>Platby a doklady</h1>
-        <div class="actions"><button type="button" class="button" id="pay-export">Export plateb (.xlsx)</button></div></div>
+        <div class="actions">
+          <button type="button" class="button" id="pay-blank">Prázdné doklady k tisku</button>
+          <button type="button" class="button" id="pay-export">Export plateb (.xlsx)</button>
+        </div></div>
       ${iss.name ? '' : `<p class="notice-inline">Pro vystavování dokladů nejdřív vyplňte údaje klubu v <a href="#/akce/${esc(ev.id)}/upravit">nastavení akce</a> (sekce Startovné a doklady).</p>`}
       ${pay.items.length ? '' : '<p class="notice-inline">Akce nemá žádné placené položky – nastavte startovné u turnajů nebo ceny u doplňujících otázek.</p>'}
       <div class="stats">
@@ -1218,10 +1245,12 @@
       if (!confirm(`Stornovat doklad ${r.number} (${r.payer}, ${R.formatMoney(r.total)})? Položky budou znovu nezaplacené.`)) return;
       try {
         pay.receipts = (await call('cancelReceipt', { id: r.id })).receipts;
+        if (memo.event[pay.event.id]) memo.event[pay.event.id].receipts = pay.receipts;
         renderPayments();
       } catch (e) { alert(e.message); }
     }));
     $('#pay-export').addEventListener('click', exportPayments);
+    $('#pay-blank').addEventListener('click', blankDialog);
     updatePayBar();
   }
 
@@ -1282,6 +1311,7 @@
         try {
           const res = await call('issueReceipts', { eventId: pay.event.id, receipts });
           pay.receipts = res.receipts;
+          if (memo.event[pay.event.id]) memo.event[pay.event.id].receipts = res.receipts;
           pay.selected.clear();
           dialog.close();
           location.hash = `#/akce/${pay.event.id}/doklady/${res.issued.map((r) => r.id).join(',')}`;
@@ -1317,6 +1347,68 @@
         <div>Zaplatil<span>podpis</span></div>
       </div>
     </article>`;
+  }
+
+  function blankDialog() {
+    const ev = pay.event;
+    openDialog(`<form class="dialog-form">
+      <h2>Prázdné doklady k tisku</h2>
+      <p class="muted small">Příjmové pokladní doklady bez vyplněných údajů – pro ruční vyplnění u prezence.
+        Neevidují se v aplikaci, číslo dokladu napíšete ručně.</p>
+      <label class="block">Počet dokladů<input type="number" name="count" min="1" max="100" value="10"></label>
+      <label class="check"><input type="checkbox" name="issuer" ${ev.issuer && ev.issuer.name ? 'checked' : 'disabled'}> předvyplnit příjemce (údaje klubu z nastavení akce)</label>
+      <label class="check"><input type="checkbox" name="half" checked> dva doklady na jednu stránku A4</label>
+      <p class="actions"><button class="primary">Zobrazit k tisku</button><button type="button" data-close>Zrušit</button></p>
+    </form>`, (d) => {
+      $('form', d).addEventListener('submit', (e) => {
+        e.preventDefault();
+        const f = e.target;
+        const n = Math.min(100, Math.max(1, parseInt(f.count.value, 10) || 1));
+        dialog.close();
+        location.hash = `#/akce/${ev.id}/prazdne-doklady/${n}/${f.issuer.checked ? 1 : 0}${f.half.checked ? 1 : 0}`;
+      });
+    });
+  }
+
+  function blankReceiptHtml(iss, half) {
+    const lines = Array.from({ length: half ? 4 : 7 }, () => '<tr><td>&nbsp;</td><td></td><td></td></tr>').join('');
+    const fill = (v) => (v ? esc(v) : '<span class="blank-line"></span>');
+    return `<article class="receipt blank${half ? ' half' : ''}">
+      <header class="rc-head"><h2>PŘÍJMOVÝ POKLADNÍ DOKLAD</h2><div>č. <span class="blank-line short"></span></div></header>
+      <div class="rc-parties">
+        <div><span class="rc-label">Příjemce</span>${iss ? `<strong>${esc(iss.name)}</strong><br>${esc(iss.address || '')}${iss.ico ? `<br>IČO: ${esc(iss.ico)}` : ''}`
+          : '<span class="blank-line"></span><span class="blank-line"></span><span class="blank-line"></span>'}</div>
+        <div><span class="rc-label">Přijato od</span><span class="blank-line"></span><span class="blank-line"></span></div>
+      </div>
+      <table class="rc-items"><thead><tr><th>Účel platby</th><th>Za koho</th><th class="num">Částka</th></tr></thead>
+        <tbody>${lines}</tbody>
+        <tfoot><tr><td colspan="2">Celkem</td><td class="num"></td></tr></tfoot></table>
+      <p><span class="rc-label">Slovy</span><span class="blank-line"></span></p>
+      <p class="rc-meta">Způsob úhrady: hotově · Datum: <span class="blank-line short"></span> · Místo: ${fill(iss && iss.place)}</p>
+      ${iss && iss.note ? `<p class="small">${esc(iss.note)}</p>` : ''}
+      <div class="rc-sign">
+        <div>Vystavil: ${iss && iss.cashier ? esc(iss.cashier) : ''}<span>podpis</span></div>
+        <div>Přijal (pokladník)<span>podpis</span></div>
+        <div>Zaplatil<span>podpis</span></div>
+      </div>
+    </article>`;
+  }
+
+  async function viewBlankReceipts(eventId, count, flags) {
+    loading('Připravuji doklady…');
+    if (!pay || pay.event.id !== eventId) await viewPayments(eventId);
+    const iss = flags[0] === '1' ? pay.event.issuer : null;
+    const half = flags[1] === '1';
+    document.body.classList.add('print-receipts');
+    const n = Math.min(100, Math.max(1, parseInt(count, 10) || 1));
+    app.innerHTML = `
+      <div class="no-print actions print-bar">
+        <a href="#/akce/${esc(eventId)}/platby">← Platby a doklady</a>
+        <button type="button" class="primary" id="print">Vytisknout / uložit jako PDF</button>
+        <span class="small muted">${n} prázdných dokladů${half ? ', dva na stránku' : ''}.</span>
+      </div>
+      <div class="${half ? 'half-pages' : ''}">${Array.from({ length: n }, () => blankReceiptHtml(iss, half)).join('')}</div>`;
+    $('#print').addEventListener('click', () => window.print());
   }
 
   async function viewReceipts(eventId, ids) {
@@ -1430,6 +1522,7 @@
       else if ((m = h.match(/^\/akce\/([^/]+)\/upravit$/))) await viewEditor(m[1]);
       else if ((m = h.match(/^\/akce\/([^/]+)\/platby$/))) await viewPayments(m[1]);
       else if ((m = h.match(/^\/akce\/([^/]+)\/doklady\/([^/]+)$/))) await viewReceipts(m[1], m[2]);
+      else if ((m = h.match(/^\/akce\/([^/]+)\/prazdne-doklady\/(\d+)\/([01]{2})$/))) await viewBlankReceipts(m[1], m[2], m[3]);
       else if ((m = h.match(/^\/akce\/([^/]+)$/))) await viewEvent(m[1]);
       else if (h === '/spravci') await viewUsers();
       else location.hash = '#/';

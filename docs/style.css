@@ -372,3 +372,16 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; font-weight:
 }
 @media (max-width: 560px) { .stats { grid-template-columns: 1fr; } .receipt .rc-parties, .receipt .rc-sign { grid-template-columns: 1fr; } }
 .pay-table .num { white-space: nowrap; }
+
+/* prázdné doklady */
+.receipt .blank-line { display: block; border-bottom: 1px solid #888; height: 1.5em; margin: 2px 0; }
+.receipt .blank-line.short { display: inline-block; width: 9em; height: 1.1em; vertical-align: bottom; }
+.receipt .rc-meta .blank-line { display: inline-block; width: 9em; height: 1.1em; vertical-align: bottom; }
+.receipt.blank tbody td { height: 1.6em; }
+.receipt.half .rc-sign { margin-top: 20px; }
+.receipt.half .rc-sign span { margin-top: 22px; }
+@media print {
+  .half-pages .receipt.half { page-break-after: auto; break-after: auto; height: 136mm; overflow: hidden; margin: 0 0 6mm; padding: 10px 16px; font-size: 12px; }
+  .half-pages .receipt.half:nth-child(2n) { page-break-after: always; break-after: page; }
+  .half-pages .receipt.half:last-child { page-break-after: auto; break-after: auto; }
+}
