@@ -126,7 +126,12 @@ U každého turnaje v administraci jsou tlačítka **.TXT** a **.xlsx**. Formát
 - `Sk.` se převezme z LOK,
 - řádky jsou seřazené podle FIDE a pak ELO ČR.
 
-Družstva se exportují jako soupisky: sloupce SM a navíc Družstvo, Šachovnice a Kapitán.
+**Družstva** se do SM importují dvěma soubory (stejně jako je SM exportuje), proto má turnaj družstev tlačítka:
+1. **Družstva .TXT** – `Č.;Jméno;Zkratka;Č.kl.;Captain;FED;Group;Info`, družstva v pořadí přihlášení,
+   `Č.kl.` = nejčastější číslo klubu hráčů soupisky. Importuje se jako první.
+2. **Hráči .TXT** – sloupce SM jako u jednotlivců a navíc `Šach.` (pořadí na soupisce, náhradníci pokračují)
+   a `Č.tým.` (číslo družstva z prvního souboru).
+3. **.xlsx** – oba seznamy jako dva listy (Družstva, Hráči).
 
 ## Vývoj lokálně
 

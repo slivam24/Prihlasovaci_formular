@@ -88,13 +88,50 @@
     return [SM_HEADER.slice()].concat(sorted.map((p, i) => smRow(p, i + 1, opts)));
   }
 
-  /** Družstva: sloupce SM + Družstvo, Šachovnice, Kapitán. Vstupem jsou řádky přihlášek. */
-  function buildTeamTable(regs, opts) {
-    const sorted = regs.filter((r) => r.surname).sort((a, b) =>
-      String(a.team).localeCompare(String(b.team), 'cs') || toInt(a.board) - toInt(b.board));
-    const header = SM_HEADER.concat(['Družstvo', 'Šachovnice', 'Kapitán']);
-    return [header].concat(sorted.map((r, i) =>
-      smRow(regToPlayer(r), i + 1, opts).concat([r.team || '', toInt(r.board), r.captain || ''])));
+  // Družstva se do SM importují dvěma soubory (podle exportu ze SM):
+  // seznam družstev a hráči se sloupci „Šach.“ (šachovnice) a „Č.tým.“ (číslo družstva ze seznamu družstev).
+  const SM_TEAM_HEADER = ['Č.', 'Jméno', 'Zkratka', 'Č.kl.', 'Captain', 'FED', 'Group', 'Info'];
+  const SM_TEAM_PLAYER_HEADER = SM_HEADER.concat(['Šach.', 'Č.tým.']);
+
+  /** Nejčastější číslo klubu mezi hráči družstva (0, když žádné). */
+  function teamClubNo(players) {
+    const counts = {};
+    players.forEach((p) => { const c = toInt(p.clubNo); if (c) counts[c] = (counts[c] || 0) + 1; });
+    const best = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+    return best ? toInt(best) : 0;
+  }
+
+  /**
+   * Družstva: vstupem jsou řádky přihlášek turnaje (řádek družstva bez hráče + hráči se šachovnicí).
+   * Vrací { teams, players } – dvě tabulky včetně hlavičky pro import do SM.
+   * Družstva jsou v pořadí přihlášení, hráči podle družstva a šachovnice.
+   */
+  function buildTeamExport(regs, opts) {
+    const order = [];
+    const byName = {};
+    const sorted = regs.slice().sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    sorted.forEach((r) => {
+      const name = String(r.team || '').trim();
+      if (!name) return;
+      const key = name.toLocaleLowerCase('cs');
+      if (!byName[key]) { byName[key] = { name, captain: '', players: [] }; order.push(byName[key]); }
+      const t = byName[key];
+      if (r.captain && !t.captain) t.captain = String(r.captain);
+      if (r.surname) t.players.push(r);
+    });
+    const teams = [SM_TEAM_HEADER.slice()];
+    const players = [SM_TEAM_PLAYER_HEADER.slice()];
+    order.forEach((t, ti) => {
+      teams.push([ti + 1, t.name, t.name, teamClubNo(t.players), t.captain, '', '', '']);
+      t.players.sort((a, b) => toInt(a.board) - toInt(b.board)).forEach((r, i) => {
+        const no = players.length;
+        const row = smRow(regToPlayer(r), no, opts);
+        ['body', 'tb1', 'tb2', 'tb3', 'tb4', 'tb5', 'tb6'].forEach((h) => { row[SM_HEADER.indexOf(h)] = 0; });
+        row[SM_HEADER.indexOf('poř.')] = no;
+        players.push(row.concat([toInt(r.board) || i + 1, ti + 1]));
+      });
+    });
+    return { teams, players };
   }
 
   function toSmText(table) {
@@ -102,7 +139,8 @@
   }
 
   const api = {
-    SM_HEADER, DEFAULT_AGE_CATEGORIES, regToPlayer, ageCategory, smType, buildSmTable, buildTeamTable, toSmText, byRating,
+    SM_HEADER, SM_TEAM_HEADER, SM_TEAM_PLAYER_HEADER, DEFAULT_AGE_CATEGORIES, regToPlayer, ageCategory, smType,
+    buildSmTable, buildTeamExport, toSmText, byRating,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.SM = api;

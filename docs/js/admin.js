@@ -863,8 +863,12 @@
               <p class="muted small">${t.type === 'team' ? 'Družstev' : 'Hráčů'}: <strong>${t.count}${cap}</strong>${R.ruleText(t) ? ' · ' + esc(R.ruleText(t)) : ''}</p></div>
             <div class="actions">
               <span class="small muted">Swiss-Manager:</span>
+              ${t.type === 'team' ? `
+              <button type="button" class="button small-btn" data-export-txt="${esc(t.id)}" data-part="teams" title="1. krok importu do SM">Družstva .TXT</button>
+              <button type="button" class="button small-btn" data-export-txt="${esc(t.id)}" data-part="players" title="2. krok importu do SM">Hráči .TXT</button>
+              <button type="button" class="button small-btn" data-export-xlsx="${esc(t.id)}" title="Oba seznamy jako dva listy">.xlsx</button>` : `
               <button type="button" class="button small-btn" data-export-txt="${esc(t.id)}">.TXT</button>
-              <button type="button" class="button small-btn" data-export-xlsx="${esc(t.id)}">.xlsx</button>
+              <button type="button" class="button small-btn" data-export-xlsx="${esc(t.id)}">.xlsx</button>`}
             </div>
           </div>
           ${tournamentTable(t)}
@@ -895,24 +899,25 @@
     $('#add-reg').addEventListener('click', addRegistrationDialog);
     $('#copy-event').addEventListener('click', () => copyEventDialog(ev));
     $('#export-all').addEventListener('click', exportAll);
-    $$('[data-export-txt]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportTxt, 'txt')));
+    $$('[data-export-txt]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportTxt, 'txt', b.dataset.part)));
     $$('[data-export-xlsx]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportXlsx, 'xlsx')));
     $$('[data-toggle]').forEach((b) => b.addEventListener('click', () => toggleRegistration(b.dataset.toggle)));
     $$('[data-edit]').forEach((b) => b.addEventListener('click', () => editRegistrationDialog(b.dataset.edit)));
   }
 
-  function smTableFor(t) {
-    const regs = current.registrations.filter((r) => r.tournamentId === t.id && r.status !== 'zrušeno');
-    return t.type === 'team'
-      ? window.SM.buildTeamTable(regs, smOpts())
-      : window.SM.buildSmTable(regs.map(window.SM.regToPlayer), smOpts());
-  }
-
-  async function exportTournament(id, kind) {
+  async function exportTournament(id, kind, part) {
     const t = current.event.tournaments.find((x) => x.id === id);
-    const table = smTableFor(t);
-    const name = `${fileSafe(current.event.slug)}_${fileSafe(t.short || t.name)}${t.type === 'team' ? '_soupisky' : ''}`;
+    const regs = current.registrations.filter((r) => r.tournamentId === t.id && r.status !== 'zrušeno');
+    const name = `${fileSafe(current.event.slug)}_${fileSafe(t.short || t.name)}`;
     try {
+      if (t.type === 'team') {
+        // SM importuje družstva dvěma soubory: nejdřív seznam družstev, pak hráče s číslem družstva
+        const exp = window.SM.buildTeamExport(regs, smOpts());
+        if (kind === 'txt') download(`${name}_${part === 'teams' ? 'druzstva' : 'hraci'}.TXT`, window.SM.toSmText(part === 'teams' ? exp.teams : exp.players));
+        else await downloadXlsx(name + '.xlsx', [{ name: 'Družstva', rows: exp.teams }, { name: 'Hráči', rows: exp.players }]);
+        return;
+      }
+      const table = window.SM.buildSmTable(regs.map(window.SM.regToPlayer), smOpts());
       if (kind === 'txt') download(name + '.TXT', window.SM.toSmText(table));
       else await downloadXlsx(name + '.xlsx', [{ name: t.short || t.name, rows: table }]);
     } catch (e) { alert(e.message); }

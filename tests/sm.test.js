@@ -26,14 +26,33 @@ test('řádky exportu jako v exportu ze SM, seřazeno podle ratingu', () => {
   lines.slice(0, 4).forEach((l) => assert.equal(l.split(';').length, 26));
 });
 
-test('soupisky družstev', () => {
+test('družstva: dva soubory jako export ze SM', () => {
+  // hlavičky přesně podle exportu ze SM (exp_test_3.TXT a exp_test_2.TXT)
+  assert.equal(SM.SM_TEAM_HEADER.join(';'), 'Č.;Jméno;Zkratka;Č.kl.;Captain;FED;Group;Info');
+  assert.equal(SM.SM_TEAM_PLAYER_HEADER.join(';'),
+    'Č.;Jméno;Titul;ID č.;Rating nár;Rating FIDE;Narozen; Fed;Pohl.;Typ;Sk.;Č.klubu;Klub;FIDE ID;Zdroj;body;tb1;tb2;tb3;tb4;tb5;tb6;poř.;surname;first name;atitle;Šach.;Č.tým.');
   const regs = [
-    { surname: 'B', firstName: 'X', year: 2012, club: 'K', inLok: 'NE', team: 'Spartak', board: 2, captain: 'Novák' },
-    { surname: 'A', firstName: 'Y', year: 2012, club: 'K', inLok: 'NE', team: 'Spartak', board: 1, captain: 'Novák' },
+    { createdAt: '2027-01-01T10:00', mode: 'team', surname: '', team: 'Spartak', board: 0, captain: 'Novák' },
+    { createdAt: '2027-01-01T10:00', surname: 'B', firstName: 'X', year: 2012, club: 'K', clubNo: 16310, inLok: 'ANO', team: 'Spartak', board: 2, captain: 'Novák' },
+    { createdAt: '2027-01-01T10:00', surname: 'A', firstName: 'Y', year: 2012, club: 'K', clubNo: 16310, inLok: 'ANO', team: 'Spartak', board: 1, captain: 'Novák' },
+    { createdAt: '2027-01-02T10:00', mode: 'team', surname: '', team: 'ZŠ Vážka', board: 0, captain: '' },
+    { createdAt: '2027-01-03T10:00', mode: 'team', surname: '', team: 'Bez soupisky', board: 0, captain: '' },
+    { createdAt: '2027-01-02T10:00', surname: 'Husák', firstName: 'Richard', year: 2015, club: 'Waldorfská ZŠ Vážka', inLok: 'NE', team: 'ZŠ Vážka', board: 1 },
   ];
-  const t = SM.buildTeamTable(regs, opts);
-  assert.deepEqual(t[0].slice(-3), ['Družstvo', 'Šachovnice', 'Kapitán']);
-  assert.deepEqual(t.slice(1).map((r) => r.slice(-3)), [['Spartak', 1, 'Novák'], ['Spartak', 2, 'Novák']]);
+  const { teams, players } = SM.buildTeamExport(regs, opts);
+  assert.deepEqual(teams.slice(1), [
+    [1, 'Spartak', 'Spartak', 16310, 'Novák', '', '', ''],
+    [2, 'ZŠ Vážka', 'ZŠ Vážka', 0, '', '', '', ''],
+    [3, 'Bez soupisky', 'Bez soupisky', 0, '', '', '', ''],
+  ]);
+  const col = (h) => SM.SM_TEAM_PLAYER_HEADER.indexOf(h);
+  assert.deepEqual(players.slice(1).map((r) => [r[0], r[col('Jméno')], r[col('poř.')], r[col('Šach.')], r[col('Č.tým.')]]), [
+    [1, 'A Y', 1, 1, 1], [2, 'B X', 2, 2, 1], [3, 'Husák Richard', 3, 1, 2],
+  ]);
+  const line = SM.toSmText(players).split('\r\n')[3];
+  assert.equal(line.split(';').length, 28);
+  assert.match(line, /^3;Husák Richard;;;0;0;00\.00\.2015;CZE;;U12, N;;0;Waldorfská ZŠ Vážka;0;;0;0;0;0;0;0;0;3;Husák;Richard;;1;2$/);
+  assert.equal(SM.toSmText(teams).split('\r\n')[1], '1;Spartak;Spartak;16310;Novák;;;');
 });
 
 test('věkové kategorie podle roku akce', () => {
