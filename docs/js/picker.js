@@ -220,6 +220,12 @@
       },
       getValue,
       validate,
+      /** Vybere hráče z listiny (hromadné přidání z filtru). */
+      setPlayer(p) {
+        toggle.checked = false;
+        manual.hidden = true;
+        select(p);
+      },
       setLabel(label) {
         opts.label = label;
         root.querySelector('.field-label').innerHTML = esc(label) + (required ? ' <span class="req">*</span>' : '');

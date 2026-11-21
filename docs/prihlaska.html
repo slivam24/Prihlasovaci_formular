@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="container">
+  <main class="container form-page">
     <header class="hero">
       <p class="links small"><a href="./">← Všechny akce</a></p>
       <h1 id="event-name">Přihláška na turnaj</h1>
@@ -19,6 +19,7 @@
     <p id="loading" class="muted">Načítám…</p>
     <div id="closed" class="card notice" hidden></div>
 
+    <div class="form-layout" id="layout">
     <form id="form" class="card" novalidate hidden>
       <fieldset id="mode-switch" class="mode" hidden>
         <legend>Přihlašuji</legend>
@@ -61,6 +62,30 @@
       <button type="submit" class="primary" id="submit">Odeslat přihlášku</button>
       <p id="db-info" class="muted small"></p>
     </form>
+
+    <aside id="finder-wrap" hidden>
+      <details id="finder" class="card finder">
+        <summary><strong>Vybrat hráče z listiny</strong> <span class="muted small">– např. celý klub nebo ročník</span></summary>
+        <div class="finder-body">
+          <div class="grid finder-filters">
+            <label class="wide">Klub<input id="f-club" list="f-clubs" placeholder="např. Teplice" autocomplete="off"><datalist id="f-clubs"></datalist></label>
+            <label>Ročník od<input id="f-from" inputmode="numeric" maxlength="4" placeholder="např. 2010"></label>
+            <label>Ročník do<input id="f-to" inputmode="numeric" maxlength="4" placeholder="např. 2016"></label>
+            <label>Pohlaví<select id="f-sex"><option value="">všichni</option><option value="M">muži / chlapci</option><option value="F">ženy / dívky</option></select></label>
+            <label class="check f-active"><input type="checkbox" id="f-active" checked> jen aktivní členové</label>
+          </div>
+          <p class="hint">„2010 a mladší“ = ročník od 2010. Aktivní = členové kategorie A, B, C, D nebo I v listině LOK.</p>
+          <div id="f-status" class="muted small"></div>
+          <div id="f-list" class="finder-list"></div>
+          <div id="f-actions" class="finder-actions" hidden>
+            <div id="f-tours" class="finder-tours"></div>
+            <button type="button" class="primary" id="f-add">Přidat vybrané do přihlášky</button>
+            <span id="f-msg" class="small" role="status"></span>
+          </div>
+        </div>
+      </details>
+    </aside>
+    </div>
 
     <div id="done" class="card success" hidden></div>
   </main>

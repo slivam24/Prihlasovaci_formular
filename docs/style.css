@@ -242,3 +242,30 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
 .chip:disabled { opacity: 0.5; cursor: not-allowed; }
 .done-player { margin: 8px 0; }
+
+/* formulář + panel pro hromadný výběr hráčů */
+.container.form-page { max-width: 760px; }
+.form-layout { display: flex; flex-direction: column-reverse; gap: 16px; }
+.form-layout > form { margin-bottom: 0; }
+@media (min-width: 1100px) {
+  .container.form-page:has(.form-layout.with-finder) { max-width: 1280px; }
+  .form-layout.with-finder { display: grid; grid-template-columns: minmax(0, 1fr) 420px; align-items: start; }
+  .form-layout.with-finder > aside { position: sticky; top: 16px; }
+  .form-layout.with-finder .finder { max-height: calc(100vh - 32px); overflow-y: auto; }
+}
+.finder { margin: 0; }
+.finder summary { cursor: pointer; }
+.finder-body > * + * { margin-top: 12px; }
+.finder-filters { grid-template-columns: 1fr 1fr; }
+.grid label.f-active { display: flex; align-items: center; gap: 8px; font-weight: 400; align-self: end; margin: 0 0 10px; }
+.grid label.f-active input { width: auto; margin: 0; }
+.finder-list { display: flex; flex-direction: column; gap: 2px; }
+.finder-row { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.finder-row:hover { background: var(--accent-soft); }
+.finder-row input { margin-top: 4px; }
+.finder-row > span { display: flex; flex-direction: column; }
+.finder-row.in-form { opacity: 0.6; cursor: default; }
+.finder-all { font-weight: 600; padding: 0 8px; }
+.finder-actions { background: var(--card); padding: 12px 0 4px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+@media (min-width: 1100px) { .finder-actions { position: sticky; bottom: -20px; } }
+.finder-tours { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

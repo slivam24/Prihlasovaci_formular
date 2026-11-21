@@ -20,6 +20,10 @@
       : { surname: clean.slice(0, i), firstName: clean.slice(i + 1) };
   }
 
+  // Kategorie členů v LOK, které bereme jako aktivní: A dospělí, B senioři, C mládež,
+  // D nejmladší, I individuální členové. (N = neaktivní – téměř nikdo z nich nemá partie.)
+  const ACTIVE_STATUSES = ['A', 'B', 'C', 'D', 'I'];
+
   class PlayerDB {
     constructor(data) {
       const f = data.fields;
@@ -55,6 +59,43 @@
     }
 
     get size() { return this.players.length; }
+
+    /** Názvy všech klubů (pro našeptávání ve filtru). */
+    clubNames() {
+      if (!this._clubNames) {
+        const set = new Set(this.players.map((p) => p.club).filter(Boolean));
+        this._clubNames = Array.from(set).sort((a, b) => a.localeCompare(b, 'cs'));
+      }
+      return this._clubNames;
+    }
+
+    /**
+     * Filtr pro hromadný výběr: část názvu klubu (bez diakritiky), ročník od–do,
+     * pohlaví ('F' / 'M') a jen aktivní členové. Seřazeno podle ratingu.
+     */
+    filter(f, limit) {
+      f = f || {};
+      const club = norm(f.club);
+      const from = parseInt(f.yearFrom, 10) || 0;
+      const to = parseInt(f.yearTo, 10) || 0;
+      const clubMatch = {};
+      const out = [];
+      for (const p of this.players) {
+        if (club) {
+          const key = p.clubNo + '|' + p.club;
+          if (!(key in clubMatch)) clubMatch[key] = norm(p.club).includes(club);
+          if (!clubMatch[key]) continue;
+        }
+        if (from && p.year < from) continue;
+        if (to && p.year > to) continue;
+        if (f.activeOnly && !ACTIVE_STATUSES.includes(p.status)) continue;
+        if (f.sex === 'F' && p.sex !== 'F') continue;
+        if (f.sex === 'M' && p.sex === 'F') continue;
+        out.push(p);
+      }
+      out.sort((a, b) => Math.max(b.rn, b.rf) - Math.max(a.rn, a.rf) || a.name.localeCompare(b.name, 'cs'));
+      return { total: out.length, players: limit ? out.slice(0, limit) : out };
+    }
 
     /* Hledá podle začátků slov jména bez ohledu na diakritiku a pořadí
      * („novak j“, „jan novak“), číslo bere jako ID ČR, ročník nebo začátek FIDE ID. */
@@ -98,7 +139,7 @@
     }
   }
 
-  const api = { PlayerDB, norm, splitName };
+  const api = { PlayerDB, norm, splitName, ACTIVE_STATUSES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.Players = api;
 })(typeof window !== 'undefined' ? window : globalThis);

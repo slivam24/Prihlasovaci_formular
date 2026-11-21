@@ -82,7 +82,7 @@
       i.checked = only || prev.includes(i.value);
       i.addEventListener('change', () => { updateCard(card); updateBulk(); });
     });
-    picker.onChange(() => { updateCard(card); updateBulk(); });
+    picker.onChange(() => { updateCard(card); updateBulk(); refreshFinder(); });
     $('.remove-player', el).addEventListener('click', () => removeCard(card));
 
     renumber();
@@ -99,6 +99,7 @@
     cards = cards.filter((c) => c !== card);
     renumber();
     updateBulk();
+    refreshFinder();
   }
 
   function renumber() {
@@ -155,6 +156,145 @@
     if (mode === 'team') btn.textContent = 'Odeslat přihlášku družstva';
     else if (cards.length > 1) btn.textContent = `Odeslat přihlášku (${cards.length} hráčů)`;
     else btn.textContent = 'Odeslat přihlášku';
+  }
+
+  // ---------- panel „Vybrat hráče z listiny“ (hromadný výběr podle klubu a ročníku) ----------
+
+  const FINDER_LIMIT = 300;
+  const finderSel = new Set(); // ID ČR vybraných hráčů
+  const finderTours = new Set();
+  let finderTimer = null;
+  let finderShown = [];
+
+  function playerKey(p) {
+    return p.id ? 'id:' + p.id : 'n:' + R.norm(p.surname + ' ' + p.firstName) + ':' + p.year;
+  }
+
+  function keysInForm() {
+    return new Set(cards.map((c) => c.picker.getValue()).filter(Boolean).map(playerKey));
+  }
+
+  function setupFinder() {
+    const wrap = $('#finder-wrap');
+    wrap.hidden = !individualTournaments().length;
+    if (wrap.hidden) return;
+    $('#finder').open = window.matchMedia('(min-width: 1100px)').matches;
+    ['#f-club', '#f-from', '#f-to'].forEach((s) => $(s).addEventListener('input', () => {
+      clearTimeout(finderTimer);
+      finderTimer = setTimeout(runFinder, 150);
+    }));
+    ['#f-sex', '#f-active'].forEach((s) => $(s).addEventListener('change', runFinder));
+    $('#f-add').addEventListener('click', addFromFinder);
+    const only = individualTournaments().length === 1;
+    $('#f-tours').innerHTML = '<span class="small">Přihlásit do:</span>' + individualTournaments().map((t) => {
+      if (only) finderTours.add(t.id);
+      return `<button type="button" class="chip" data-ftour="${esc(t.id)}" aria-pressed="${only}">${only ? '✓ ' : ''}${esc(tShort(t))}</button>`;
+    }).join('');
+    $$('[data-ftour]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.ftour;
+      if (finderTours.has(id)) finderTours.delete(id); else finderTours.add(id);
+      const on = finderTours.has(id);
+      b.setAttribute('aria-pressed', on);
+      b.textContent = (on ? '✓ ' : '') + tShort(individualTournaments().find((t) => t.id === id));
+    }));
+    renderFinder();
+  }
+
+  function finderReady() {
+    if (!db) {
+      $('#f-status').textContent = dbFailed ? 'Seznam hráčů se nepodařilo načíst.' : 'Načítám seznam hráčů…';
+      return false;
+    }
+    if (!$('#f-clubs').children.length) {
+      $('#f-clubs').innerHTML = db.clubNames().map((c) => `<option value="${esc(c)}">`).join('');
+    }
+    return true;
+  }
+
+  function runFinder() {
+    finderSel.clear();
+    renderFinder();
+  }
+
+  function renderFinder() {
+    if (!finderReady()) return;
+    const club = $('#f-club').value.trim();
+    const from = $('#f-from').value.trim();
+    const to = $('#f-to').value.trim();
+    const list = $('#f-list');
+    if (club.length < 2 && !/^\d{4}$/.test(from) && !/^\d{4}$/.test(to)) {
+      finderShown = [];
+      list.innerHTML = '';
+      $('#f-status').textContent = 'Zadejte klub nebo ročník.';
+      $('#f-actions').hidden = true;
+      return;
+    }
+    const res = db.filter({ club, yearFrom: from, yearTo: to, sex: $('#f-sex').value, activeOnly: $('#f-active').checked }, FINDER_LIMIT);
+    finderShown = res.players;
+    const inForm = keysInForm();
+    $('#f-status').textContent = res.total
+      ? `Nalezeno ${res.total} hráčů${res.total > FINDER_LIMIT ? `, zobrazeno prvních ${FINDER_LIMIT} – zužte filtr` : ''}.`
+      : 'Nikdo neodpovídá filtru.';
+    const free = finderShown.filter((p) => !inForm.has(playerKey(p)));
+    list.innerHTML = finderShown.length ? `
+      <label class="check finder-all"><input type="checkbox" id="f-all" ${free.length && free.every((p) => finderSel.has(p.id)) ? 'checked' : ''} ${free.length ? '' : 'disabled'}> vybrat všechny zobrazené</label>
+      ${finderShown.map((p) => {
+        const already = inForm.has(playerKey(p));
+        return `<label class="finder-row${already ? ' in-form' : ''}">
+          <input type="checkbox" data-fid="${esc(p.id)}" ${already || finderSel.has(p.id) ? 'checked' : ''} ${already ? 'disabled' : ''}>
+          <span><strong>${esc(p.name)}</strong>${p.title ? ` <span class="badge">${esc(p.title)}</span>` : ''}
+            <span class="opt-meta">${esc([p.year, p.club, p.rn ? 'ELO ČR ' + p.rn : '', p.rf ? 'FIDE ' + p.rf : ''].filter(Boolean).join(' · '))}${already ? ' · v přihlášce' : ''}</span></span>
+        </label>`;
+      }).join('')}` : '';
+    const all = $('#f-all');
+    if (all) {
+      all.addEventListener('change', () => {
+        free.forEach((p) => { if (all.checked) finderSel.add(p.id); else finderSel.delete(p.id); });
+        renderFinder();
+      });
+    }
+    $$('[data-fid]', list).forEach((i) => i.addEventListener('change', () => {
+      const id = Number(i.dataset.fid);
+      if (i.checked) finderSel.add(id); else finderSel.delete(id);
+      updateFinderButton();
+    }));
+    $('#f-actions').hidden = !finderShown.length;
+    updateFinderButton();
+  }
+
+  function refreshFinder() {
+    if (!$('#finder-wrap').hidden && finderShown.length) renderFinder();
+  }
+
+  function updateFinderButton() {
+    const n = finderSel.size;
+    const btn = $('#f-add');
+    btn.disabled = !n;
+    btn.textContent = n ? `Přidat vybrané do přihlášky (${n})` : 'Přidat vybrané do přihlášky';
+  }
+
+  function addFromFinder() {
+    const inForm = keysInForm();
+    const chosen = finderShown.filter((p) => finderSel.has(p.id) && !inForm.has(playerKey(p)));
+    if (!chosen.length) return;
+    const tours = Array.from(finderTours);
+    chosen.forEach((p) => {
+      // prázdnou první kartu použijeme, jinak přidáme novou
+      let card = cards.find((c) => c.picker.isEmpty());
+      if (!card) card = addPlayerCard(cards[cards.length - 1]);
+      card.picker.setPlayer(p);
+      if (tours.length) {
+        $$('.tournament input', card.el).forEach((i) => { i.checked = tours.includes(i.value); });
+      }
+      updateCard(card);
+    });
+    finderSel.clear();
+    updateBulk();
+    renumber();
+    renderFinder();
+    const msg = $('#f-msg');
+    msg.textContent = `Přidáno ${chosen.length} hráčů. Turnaje u nich můžete upravit vlevo.`;
+    setTimeout(() => { if (msg.textContent.startsWith('Přidáno')) msg.textContent = ''; }, 6000);
   }
 
   // ---------- družstva ----------
@@ -237,6 +377,8 @@
     mode = (form.querySelector('[name="mode"]:checked') || {}).value || 'individual';
     $('#individual').hidden = mode !== 'individual';
     $('#team').hidden = mode !== 'team';
+    $('#finder-wrap').hidden = mode !== 'individual' || !individualTournaments().length;
+    $('#layout').classList.toggle('with-finder', !$('#finder-wrap').hidden);
     $$('#extras .extra').forEach((el) => { el.hidden = !el.dataset.modes.split(' ').includes(mode); });
     updateSubmitLabel();
     hideErrors();
@@ -347,6 +489,8 @@
       </p>`;
     done.hidden = false;
     form.hidden = true;
+    $('#finder-wrap').hidden = true;
+    $('#layout').classList.remove('with-finder');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     $('#another').addEventListener('click', () => {
       resetForm();
@@ -365,6 +509,7 @@
     if (radio) radio.checked = true;
     $('#players').innerHTML = '';
     cards = [];
+    finderSel.clear();
     if (individualTournaments().length) addPlayerCard(null);
     if (teamTournaments().length) renderTeamPlayers();
     applyMode();
@@ -406,6 +551,7 @@
     }
     cards.forEach((c) => attachPickerDb(c.picker));
     teamPickers.forEach(attachPickerDb);
+    renderFinder();
   }
 
   async function init() {
@@ -431,6 +577,7 @@
       card.picker.focus();
       card.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
+    setupFinder();
     renderTeamSection();
     renderExtras();
     $$('[name="mode"]', form).forEach((r) => r.addEventListener('change', applyMode));

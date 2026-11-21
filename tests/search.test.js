@@ -52,3 +52,16 @@ test('krátký nebo prázdný dotaz nic nevrací', () => {
   assert.deepEqual(db.search(''), []);
   assert.deepEqual(db.search('1'), []);
 });
+
+test('filtr pro hromadný výběr: klub, ročník, pohlaví, aktivní', () => {
+  const names = (r) => r.players.map((p) => p.name);
+  assert.deepEqual(names(db.filter({ club: 'spartak' })), ['Mikulka Martin Michael', 'Bažantová Marie', 'Mikulka Martin']);
+  assert.deepEqual(names(db.filter({ club: 'spartak', yearFrom: 2000 })), ['Mikulka Martin Michael']);
+  assert.deepEqual(names(db.filter({ club: 'spartak', yearTo: 1970 })), ['Bažantová Marie']);
+  assert.deepEqual(names(db.filter({ club: 'SPARTAK ústí', sex: 'F' })), ['Bažantová Marie']);
+  assert.deepEqual(names(db.filter({ club: 'unichess' })), ['Martin Jan', 'Červený Miroslav'], 'podle ratingu');
+  assert.deepEqual(names(db.filter({ club: 'unichess', activeOnly: true })), ['Martin Jan'], 'N = neaktivní');
+  assert.equal(db.filter({ yearFrom: 1900 }, 2).players.length, 2);
+  assert.equal(db.filter({ yearFrom: 1900 }, 2).total, 6);
+  assert.ok(db.clubNames().includes('Unichess'));
+});
