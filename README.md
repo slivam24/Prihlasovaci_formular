@@ -23,6 +23,11 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - **družstva**: víc družstev v jedné přihlášce, soupiska se řadí šipkami (pořadí = šachovnice, pak náhradníci),
   hráče lze přidat filtrem „Vybrat hráče z listiny“ a přesouvat mezi družstvy; soupisku lze doplnit později
   přes odkaz z e-mailu, pořadatel ji upraví kdykoli („Upravit soupisku“ v detailu akce),
+- **startovné se slevami** (ženy, mládež/senioři podle ročníku, tituly, ELO – platí nejnižší cena), částka k úhradě
+  ve formuláři, na stránce změn i v e-mailu,
+- **platby a pokladní doklady** („Platby a doklady“ v detailu akce): položky k úhradě (startovné, obědy, ubytování…),
+  filtr podle klubu a kategorie, vystavení příjmového pokladního dokladu za vybrané položky (jeden, po hráčích, po přihláškách),
+  tisk / PDF, storno, export; údaje klubu a řada čísel v nastavení akce,
 - **obědy a ubytování s cenou**: typ otázky „počet kusů s cenou“ a předvolby v editoru akce, součty v souhrnu a exportu,
 - **změny přihlášek odkazem z e-mailu** (`zmena.html?t=…`): odhláška hráčů z turnajů, vrácení odhlášky,
   změna ubytování/obědů/dopravy – do dne před začátkem akce; e-mail o změně přihlášenému i pořadateli (kontaktní e-mail akce),

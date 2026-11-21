@@ -118,6 +118,55 @@
     return (extras || []).reduce((sum, x) => sum + extraPrice(x, (values || {})[x.id]), 0);
   }
 
+  // ---- startovné ----
+
+  const FEE_RULE_TYPES = {
+    women: 'ženy a dívky',
+    youth: 'ročník … a mladší',
+    senior: 'ročník … a starší',
+    titles: 'tituly',
+    rating: 'ELO od',
+  };
+
+  function feeRuleText(r) {
+    if (r.type === 'women') return 'ženy';
+    if (r.type === 'youth') return `ročník ${r.value} a mladší`;
+    if (r.type === 'senior') return `ročník ${r.value} a starší`;
+    if (r.type === 'titles') return String(r.value || '');
+    if (r.type === 'rating') return `ELO ${r.value}+`;
+    return '';
+  }
+
+  function feeRuleMatches(r, p) {
+    if (!p) return false;
+    if (r.type === 'women') return p.sex === 'F';
+    if (r.type === 'youth') return !!p.year && p.year >= Number(r.value);
+    if (r.type === 'senior') return !!p.year && p.year <= Number(r.value);
+    if (r.type === 'titles') {
+      const list = String(r.value || '').toUpperCase().split(/[\s,;]+/).filter(Boolean);
+      return !!p.title && list.includes(String(p.title).toUpperCase());
+    }
+    if (r.type === 'rating') return Math.max(p.rn || 0, p.rf || 0) >= Number(r.value);
+    return false;
+  }
+
+  /**
+   * Startovné hráče v turnaji: nejnižší z ceny základní a cen slev, které hráč splňuje.
+   * Vrací { amount, reason } nebo null, když turnaj startovné nemá. U družstev = za družstvo.
+   */
+  function entryFee(t, p) {
+    if (typeof t.fee !== 'number') return null;
+    let best = { amount: t.fee, reason: '' };
+    if (t.type !== 'team') {
+      (t.feeRules || []).forEach((r) => {
+        if (typeof r.price === 'number' && r.price < best.amount && feeRuleMatches(r, p)) {
+          best = { amount: r.price, reason: feeRuleText(r) };
+        }
+      });
+    }
+    return best;
+  }
+
   /** Skloňování: plural(4, 'šachovnice', 'šachovnice', 'šachovnic'). */
   function plural(n, one, few, many) {
     return `${n} ${n === 1 ? one : n >= 2 && n <= 4 ? few : many}`;
@@ -130,6 +179,7 @@
   }
 
   const api = {
+    FEE_RULE_TYPES, feeRuleText, feeRuleMatches, entryFee,
     plural, teamSize,
     formatMoney, optionPrice, extraPrice, extraText, extrasTotal,
     norm, eventYear, isClosed, ruleText, eligibility, ratingWarning, samePlayer,

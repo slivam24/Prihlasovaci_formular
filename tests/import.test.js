@@ -79,3 +79,13 @@ test('importovaná akce projde uložením na serveru', () => {
   assert.deepEqual(res.event.extras[1].prices, [130, 130]);
   assert.equal(res.event.extras[1].unit, 'porce');
 });
+
+test('import: startovné a slevy', () => {
+  const { event } = parseImport(JSON.stringify(EXAMPLE));
+  assert.equal(event.tournaments[0].fee, 250);
+  assert.deepEqual(event.tournaments[0].feeRules.map((r) => r.type), ['women', 'youth', 'titles']);
+  assert.equal(event.tournaments[1].fee, null);
+  const gas = createGas({ owner: 'owner@example.cz' });
+  const res = gas.post({ action: 'admin.saveEvent', idToken: fakeToken('owner@example.cz'), event });
+  assert.equal(res.event.tournaments[0].feeRules[1].value, 2008);
+});

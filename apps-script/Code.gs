@@ -18,18 +18,23 @@ const SHEETS = {
   events: {
     name: 'Akce',
     cols: ['id', 'slug', 'name', 'place', 'dateFrom', 'dateTo', 'deadline', 'status', 'infoUrl', 'intro',
-      'contactEmail', 'admins', 'extras', 'createdBy', 'createdAt', 'updatedAt'],
+      'contactEmail', 'admins', 'extras', 'issuer', 'createdBy', 'createdAt', 'updatedAt'],
   },
   tournaments: {
     name: 'Turnaje',
     cols: ['id', 'eventId', 'order', 'name', 'short', 'day', 'type', 'minBirthYear', 'maxBirthYear',
-      'warnMaxRating', 'capacity', 'boards', 'reserves'],
+      'warnMaxRating', 'capacity', 'boards', 'reserves', 'fee', 'feeRules'],
   },
   registrations: {
     name: 'Přihlášky',
     cols: ['id', 'applicationId', 'eventId', 'tournamentId', 'createdAt', 'email', 'mode',
       'surname', 'firstName', 'year', 'sex', 'title', 'idCr', 'fideId', 'rn', 'rf', 'fed', 'clubNo', 'club', 'sk',
       'inLok', 'team', 'board', 'captain', 'extras', 'status', 'orgNote', 'updatedAt', 'updatedBy', 'editToken'],
+  },
+  receipts: {
+    name: 'Doklady',
+    cols: ['id', 'number', 'eventId', 'issuedAt', 'issuedBy', 'payer', 'payerClub', 'method', 'items', 'total',
+      'issuer', 'note', 'status'],
   },
   changes: {
     name: 'Změny',
@@ -48,6 +53,8 @@ const EXTRA_TYPES = ['checkboxes', 'select', 'quantity', 'text', 'textarea'];
 const CHOICE_TYPES = ['checkboxes', 'select', 'quantity'];
 const ROLES = ['superadmin', 'organizer'];
 const CANCELLED = 'zrušeno';
+const RECEIPT_CANCELLED = 'stornováno';
+const FEE_RULE_TYPES = ['women', 'youth', 'senior', 'titles', 'rating'];
 const MAX_GROUP_PLAYERS = 60;
 const MAX_GROUP_TEAMS = 20;
 const YES = 'ANO';
@@ -221,6 +228,7 @@ function buildEvent_(row, tourRows) {
     contactEmail: String(row.contactEmail || ''),
     admins: splitEmails_(row.admins),
     extras: parseJson_(row.extras, []),
+    issuer: parseJson_(row.issuer, {}),
     createdBy: String(row.createdBy || ''),
     tournaments: tourRows.slice().sort((a, b) => toInt_(a.order) - toInt_(b.order)).map((t) => ({
       _row: t._row,
@@ -235,6 +243,8 @@ function buildEvent_(row, tourRows) {
       capacity: toInt_(t.capacity) || null,
       boards: toInt_(t.boards) || null,
       reserves: toInt_(t.reserves) || 0,
+      fee: t.fee === '' || t.fee == null || isNaN(Number(t.fee)) ? null : Number(t.fee),
+      feeRules: parseJson_(t.feeRules, []),
     })),
   };
 }
@@ -336,6 +346,17 @@ function sanitizeEvent_(input, existingEvents, currentId) {
       capacity: toInt_(t.capacity) || null,
       boards: type === 'team' ? Math.min(Math.max(toInt_(t.boards) || 4, 1), 12) : null,
       reserves: type === 'team' ? Math.min(Math.max(toInt_(t.reserves), 0), 6) : 0,
+      fee: cleanPrice_(t.fee),
+      feeRules: type === 'team' ? [] : (Array.isArray(t.feeRules) ? t.feeRules : []).slice(0, 10).map((r) => {
+        const rt = FEE_RULE_TYPES.indexOf(r && r.type) >= 0 ? r.type : '';
+        const price = cleanPrice_(r && r.price);
+        if (!rt || price == null) return null;
+        let value = '';
+        if (rt === 'titles') value = String(r.value || '').toUpperCase().split(/[\s,;]+/).filter(Boolean).slice(0, 10).join(', ');
+        else if (rt !== 'women') value = toInt_(r.value) || '';
+        if (rt !== 'women' && !value) return null;
+        return { type: rt, value, price };
+      }).filter(Boolean),
     };
   });
   if (!tournaments.length) throw userError_('Přidejte alespoň jeden turnaj.');
@@ -381,6 +402,7 @@ function sanitizeEvent_(input, existingEvents, currentId) {
       infoUrl: /^https?:\/\//.test(String(input.infoUrl || '')) ? clean_(input.infoUrl, 300) : '',
       intro: clean_(input.intro, 2000),
       contactEmail: isEmail_(input.contactEmail) ? clean_(input.contactEmail, 200) : '',
+      issuer: cleanIssuer_(input.issuer),
       admins: splitEmails_(input.admins),
       extras,
     },
@@ -400,6 +422,20 @@ function addDays_(iso, n) {
 function daysBetween_(a, b) {
   const t = (iso) => Date.UTC(toInt_(iso.slice(0, 4)), toInt_(iso.slice(5, 7)) - 1, toInt_(iso.slice(8, 10)));
   return Math.round((t(b) - t(a)) / 864e5);
+}
+
+function cleanPrice_(v) {
+  if (v === '' || v == null) return null;
+  const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.'));
+  return isNaN(n) || n < 0 ? null : Math.round(n * 100) / 100;
+}
+
+function cleanIssuer_(x) {
+  x = x && typeof x === 'object' ? x : {};
+  return {
+    name: clean_(x.name, 150), ico: clean_(x.ico, 20), address: clean_(x.address, 200),
+    place: clean_(x.place, 80), cashier: clean_(x.cashier, 80), prefix: clean_(x.prefix, 20), note: clean_(x.note, 300),
+  };
 }
 
 function cleanDate_(s) {
@@ -547,6 +583,14 @@ function processRegistration_(data, ev, existing, now, opts) {
       })),
       extras,
     },
+  };
+}
+
+function receiptView_(r) {
+  return {
+    id: r.id, number: String(r.number), eventId: r.eventId, issuedAt: r.issuedAt, issuedBy: r.issuedBy,
+    payer: r.payer, payerClub: r.payerClub, method: r.method, items: parseJson_(r.items, []),
+    total: Number(r.total) || 0, issuer: parseJson_(r.issuer, {}), note: r.note, status: r.status || '',
   };
 }
 
@@ -733,7 +777,15 @@ function sendConfirmation_(ev, email, result) {
     });
   }
   lines.push('');
-  extrasLines_(ev.extras, s.extras).forEach((l) => lines.push(l));
+  const extrasLinesList = extrasLines_(ev.extras, s.extras);
+  extrasLinesList.forEach((l) => lines.push(l));
+  const fees = result.rows.map((r) => rowFee_(ev, r)).filter((f) => f != null);
+  const extrasSum = (ev.extras || []).reduce((sum, x) => sum + extraPrice_(x, s.extras[x.id]), 0);
+  if (fees.length || extrasSum) {
+    const feeSum = fees.reduce((a, b) => a + b, 0);
+    lines.push('', `K úhradě na místě: ${money_(feeSum + extrasSum)}` +
+      (fees.length && extrasSum ? ` (startovné ${money_(feeSum)}, doplňky ${money_(extrasSum)})` : ''));
+  }
   lines.push('', `Číslo přihlášky: ${result.applicationId}`);
   const editUrl = editUrl_(result.editToken);
   if (editUrl) lines.push('', 'Odhlášení nebo změna ubytování a dalších údajů:', editUrl);
@@ -814,6 +866,7 @@ function applicationView_(ev, rows, now) {
         tournament: tourShortById_(ev, r.tournamentId),
         board: toInt_(r.board) || null,
         cancelled: r.status === CANCELLED,
+        fee: rowFee_(ev, r),
       })),
     },
     canEdit: canSelfEdit_(ev, now),
@@ -832,7 +885,7 @@ function groupTeams_(ev, rows) {
       map[key] = {
         key, name: String(r.team || ''), captain: String(r.captain || ''), tournamentId: r.tournamentId,
         tournament: tourShortById_(ev, r.tournamentId), boards: t.boards || 4, reserves: t.reserves || 0,
-        cancelled: true, players: [],
+        fee: t.fee != null ? entryFee_(t, {}) : null, cancelled: true, players: [],
       };
       order.push(key);
     }
@@ -861,6 +914,30 @@ function extraText_(x, v) {
     t = Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
   }
   return t || '—';
+}
+
+/** Startovné řádku přihlášky (hráč v turnaji / družstvo). null = bez startovného. */
+function entryFee_(t, p) {
+  if (typeof t.fee !== 'number') return null;
+  let best = t.fee;
+  if (t.type === 'team') return best;
+  (t.feeRules || []).forEach((r) => {
+    let ok = false;
+    if (r.type === 'women') ok = p.sex === 'F';
+    else if (r.type === 'youth') ok = !!p.year && p.year >= Number(r.value);
+    else if (r.type === 'senior') ok = !!p.year && p.year <= Number(r.value);
+    else if (r.type === 'titles') ok = !!p.title && String(r.value).toUpperCase().split(/[\s,;]+/).indexOf(String(p.title).toUpperCase()) >= 0;
+    else if (r.type === 'rating') ok = Math.max(p.rn || 0, p.rf || 0) >= Number(r.value);
+    if (ok && r.price < best) best = r.price;
+  });
+  return best;
+}
+
+function rowFee_(ev, r) {
+  const t = ev.tournaments.find((x) => x.id === r.tournamentId);
+  if (!t) return null;
+  if (t.type === 'team') return isTeamRow_(r) ? entryFee_(t, {}) : null;
+  return entryFee_(t, rowToPlayer_(r));
 }
 
 function money_(n) {
@@ -1204,7 +1281,8 @@ const ADMIN_ACTIONS = {
     assertCanEdit_(user, ev);
     const regs = table_('registrations').rows.filter((r) => r.eventId === ev.id);
     const changes = table_('changes').rows.filter((c) => c.eventId === ev.id).map(stripRow_);
-    return { event: adminEventView_(ev, regs), registrations: regs.map(stripRow_), changes };
+    const receipts = table_('receipts').rows.filter((r) => r.eventId === ev.id).map(receiptView_);
+    return { event: adminEventView_(ev, regs), registrations: regs.map(stripRow_), changes, receipts };
   },
 
   saveEvent(body, user) {
@@ -1223,13 +1301,14 @@ const ADMIN_ACTIONS = {
           clean.event.admins = existing.admins; // správce akce smí měnit jen zakladatel a hlavní správce
         }
         evRow = table_('events').rows.find((r) => r._row === existing._row);
-        Object.assign(evRow, clean.event, { admins: clean.event.admins.join(', '), extras: JSON.stringify(clean.event.extras), updatedAt: now });
+        Object.assign(evRow, clean.event, { admins: clean.event.admins.join(', '), extras: JSON.stringify(clean.event.extras), issuer: JSON.stringify(clean.event.issuer), updatedAt: now });
         update_('events', evRow);
       } else {
         evRow = Object.assign({}, clean.event, {
           id: makeId_(new Date(), 8),
           admins: uniq_([user.email].concat(clean.event.admins)).join(', '),
           extras: JSON.stringify(clean.event.extras),
+          issuer: JSON.stringify(clean.event.issuer),
           createdBy: user.email, createdAt: now, updatedAt: now,
         });
         insert_('events', [evRow]);
@@ -1251,10 +1330,10 @@ const ADMIN_ACTIONS = {
       clean.tournaments.forEach((t) => {
         const old = t.id && tourRows.find((r) => r.id === t.id && r.eventId === evRow.id);
         if (old) {
-          Object.assign(old, t);
+          Object.assign(old, t, { feeRules: JSON.stringify(t.feeRules) });
           update_('tournaments', old);
         } else {
-          toInsert.push(Object.assign({}, t, { id: makeId_(new Date(), 8), eventId: evRow.id }));
+          toInsert.push(Object.assign({}, t, { feeRules: JSON.stringify(t.feeRules), id: makeId_(new Date(), 8), eventId: evRow.id }));
         }
       });
       if (removed.length) remove_('tournaments', tourRows.filter((r) => removed.some((t) => t.id === r.id)));
@@ -1287,7 +1366,7 @@ const ADMIN_ACTIONS = {
       name: clean_(body.name, 150) || src.name + ' (kopie)',
       place: src.place, dateFrom: shiftDate(src.dateFrom), dateTo: shiftDate(src.dateTo),
       deadline: shiftDate(src.deadline), status: 'koncept', infoUrl: src.infoUrl, intro: src.intro,
-      contactEmail: src.contactEmail, admins: src.admins, extras: src.extras,
+      contactEmail: src.contactEmail, admins: src.admins, extras: src.extras, issuer: src.issuer,
       tournaments: src.tournaments.map((t) => Object.assign(stripRow_(t), {
         id: '', minBirthYear: shiftYear(t.minBirthYear), maxBirthYear: shiftYear(t.maxBirthYear),
       })),
@@ -1317,6 +1396,68 @@ const ADMIN_ACTIONS = {
 
   updateApplication(body, user) {
     return withLock_(() => updateApplication_(body, user));
+  },
+
+  receipts(body, user) {
+    const ev = loadEventById_(body.eventId);
+    assertCanEdit_(user, ev);
+    return { receipts: table_('receipts').rows.filter((r) => r.eventId === ev.id).map(receiptView_) };
+  },
+
+  /** Vystaví jeden nebo více dokladů; položky musí být dosud nezaplacené. */
+  issueReceipts(body, user) {
+    return withLock_(() => {
+      const ev = loadEventById_(body.eventId);
+      assertCanEdit_(user, ev);
+      const list = Array.isArray(body.receipts) ? body.receipts : [];
+      if (!list.length) throw userError_('Vyberte položky k zaplacení.');
+      const all = table_('receipts').rows;
+      const paid = {};
+      all.filter((r) => r.eventId === ev.id && r.status !== RECEIPT_CANCELLED)
+        .forEach((r) => parseJson_(r.items, []).forEach((it) => { paid[it.key] = r.number; }));
+      const issuer = Object.assign({}, cleanIssuer_(ev.issuer));
+      if (!issuer.name) throw userError_('V nastavení akce vyplňte údaje pro doklady (název klubu, IČO, adresa).');
+      const prefix = issuer.prefix || `${eventYear_(ev)}-`;
+      let seq = all.filter((r) => String(r.number).indexOf(prefix) === 0)
+        .reduce((m, r) => Math.max(m, toInt_(String(r.number).slice(prefix.length))), 0);
+      const now = new Date();
+      const out = list.map((rc) => {
+        const items = (Array.isArray(rc.items) ? rc.items : []).map((it) => ({
+          key: clean_(it.key, 120), label: clean_(it.label, 200), person: clean_(it.person, 120),
+          amount: cleanPrice_(it.amount) || 0,
+        })).filter((it) => it.key && it.label);
+        if (!items.length) throw userError_('Doklad musí mít aspoň jednu položku.');
+        const dup = items.find((it) => paid[it.key]);
+        if (dup) throw userError_(`Položka „${dup.label}“ (${dup.person}) je už zaplacená dokladem ${paid[dup.key]}.`);
+        items.forEach((it) => { paid[it.key] = 'tento'; });
+        const payer = clean_(rc.payer, 150);
+        if (!payer) throw userError_('Vyplňte, od koho byla platba přijata.');
+        seq += 1;
+        return {
+          id: makeId_(now, 8), number: prefix + String(seq).padStart(4, '0'), eventId: ev.id,
+          issuedAt: now.toISOString(), issuedBy: user.email, payer, payerClub: clean_(rc.payerClub, 150),
+          method: 'hotově', items: JSON.stringify(items), total: Math.round(items.reduce((a, it) => a + it.amount, 0) * 100) / 100,
+          issuer: JSON.stringify(issuer), note: clean_(rc.note, 300), status: '',
+        };
+      });
+      insert_('receipts', out);
+      logChanges_(ev, '', out.map((r) => ({ registrationId: '', action: 'doklad', detail: `${r.number}: ${r.payer} – ${money_(r.total)}` })), user.email, now);
+      return { issued: out.map(receiptView_), receipts: table_('receipts').rows.filter((r) => r.eventId === ev.id).map(receiptView_) };
+    });
+  },
+
+  cancelReceipt(body, user) {
+    return withLock_(() => {
+      const r = table_('receipts').rows.find((x) => x.id === String(body.id));
+      if (!r) throw userError_('Doklad nebyl nalezen.');
+      const ev = loadEventById_(r.eventId);
+      assertCanEdit_(user, ev);
+      if (r.status === RECEIPT_CANCELLED) throw userError_('Doklad už je stornovaný.');
+      r.status = RECEIPT_CANCELLED;
+      update_('receipts', r);
+      logChanges_(ev, '', [{ registrationId: '', action: 'storno dokladu', detail: `${r.number}: ${r.payer} – ${money_(Number(r.total) || 0)}` }], user.email, new Date());
+      return { receipts: table_('receipts').rows.filter((x) => x.eventId === ev.id).map(receiptView_) };
+    });
   },
 
   addRegistration(body, user) {

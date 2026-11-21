@@ -13,7 +13,8 @@
     intro: 'Prezence do 9:30, start 1. kola v 10:00.',
     contactEmail: '',
     tournaments: [
-      { name: 'Open rapid – Grand Prix ČR', short: 'Rapid', day: 'sobota', type: 'individual', minBirthYear: null, maxBirthYear: null, warnMaxRating: null, capacity: null },
+      { name: 'Open rapid – Grand Prix ČR', short: 'Rapid', day: 'sobota', type: 'individual', minBirthYear: null, maxBirthYear: null, warnMaxRating: null, capacity: null,
+        fee: 250, feeRules: [{ type: 'women', value: '', price: 200 }, { type: 'youth', value: 2008, price: 150 }, { type: 'titles', value: 'GM, IM', price: 0 }] },
       { name: 'Turnaj mladších žáků', short: 'Žáci', day: 'sobota', type: 'individual', minBirthYear: 2015, maxBirthYear: null, warnMaxRating: null, capacity: null },
       { name: 'Turnaj neregistrovaných a hráčů do ELO 1100', short: 'Neregistrovaní', day: 'sobota', type: 'individual', minBirthYear: null, maxBirthYear: 2014, warnMaxRating: 1100, capacity: null },
       { name: 'Velká cena 4členných družstev', short: 'Družstva', day: 'pátek', type: 'team', boards: 4, reserves: 1, minBirthYear: 2007, maxBirthYear: null, warnMaxRating: null, capacity: 12 },
@@ -43,6 +44,8 @@ Pravidla:
   - "minBirthYear": nejstarší povolený ročník u turnajů pro mládež ("2015 a mladší" → 2015). "maxBirthYear": nejmladší povolený ročník ("2014 a starší" → 2014). Jinak null.
   - "warnMaxRating": horní limit ELO, pokud turnaj je jen pro hráče do určitého ELO, jinak null.
   - "capacity": maximální počet hráčů (u družstev počet družstev), pokud je uveden, jinak null.
+  - "fee": startovné v Kč (u družstev za družstvo), jinak null. "feeRules": slevy ze startovného jako [{ "type", "value", "price" }]:
+    "women" (ženy, value ""), "youth" (value = ročník a mladší), "senior" (value = ročník a starší), "titles" (value = např. "GM, IM"), "rating" (value = ELO od). "price" = cena po slevě (zdarma = 0). Bez slev [].
 - "extras": doplňující otázky, které se mají hráčů ptát (doprava, ubytování, strava…), jen pokud je propozice nabízejí. Vždy přidej na konec { "label": "Poznámka", "type": "textarea", "options": [], "prices": [], "help": "", "modes": ["individual", "team"] }.
   - "type": "quantity" = počet kusů (obědy v porcích, ubytování v lůžkách – každý oběd/den a každý typ pokoje a noc jako samostatná možnost), "checkboxes" (více možností), "select" (jedna z možností), "text" (krátký text), "textarea" (delší text).
   - U quantity, checkboxes a select vyplň "options" a "prices" = ceny v Kč ve stejném pořadí jako options (neznámá cena = null). U quantity vyplň "unit" (např. "porce", "lůžko").
@@ -146,6 +149,11 @@ Pravidla:
         warnMaxRating: toInt(t.warnMaxRating, 1, 3500),
         capacity: toInt(t.capacity, 1, 10000),
       };
+      const fee = parseFloat(String(t.fee == null ? '' : t.fee).replace(/[^\d.,]/g, '').replace(',', '.'));
+      tour.fee = isNaN(fee) ? null : fee;
+      tour.feeRules = type === 'team' || !Array.isArray(t.feeRules) ? [] : t.feeRules
+        .filter((r) => r && ['women', 'youth', 'senior', 'titles', 'rating'].includes(r.type))
+        .map((r) => ({ type: r.type, value: r.value == null ? '' : r.value, price: Number(r.price) || 0 }));
       if (type === 'team') {
         tour.boards = toInt(t.boards, 1, 12) || 4;
         tour.reserves = toInt(t.reserves, 0, 6) || 0;

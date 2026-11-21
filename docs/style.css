@@ -326,3 +326,49 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 .team-block h3 { margin: 0; }
 .team-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin: 18px 0 6px; }
 .team-head h3 { margin: 0; }
+.fee-rules-box { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.fee-rule { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+.fee-rule select, .fee-rule input { padding: 6px 8px; }
+.fee-rule [data-r="value"] { width: 150px; }
+.fee-rule [data-r="price"] { width: 90px; }
+label.inline { display: inline-flex; gap: 6px; align-items: center; font-weight: 400; }
+
+/* platby a doklady */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.stats > div { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; flex-direction: column; }
+.stats strong { font-size: 1.3rem; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.filters label { display: flex; flex-direction: column; font-weight: 600; font-size: 0.9rem; gap: 4px; }
+.filters .grow { flex: 1; min-width: 200px; }
+.pay-table tr.paid td { color: var(--muted); }
+.pay-bar { position: sticky; bottom: 0; z-index: 15; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--card);
+  border: 1px solid var(--accent); border-radius: var(--radius); padding: 10px 14px; margin: 12px 0; box-shadow: 0 -4px 16px rgba(0,0,0,0.08); }
+.issue-group { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
+.issue-group legend { padding: 0 6px; }
+.issue-group ul { margin: 4px 0 8px; padding-left: 18px; }
+.issue-list { max-height: 50vh; overflow: auto; }
+.print-bar { margin-bottom: 16px; }
+
+.receipt { position: relative; background: #fff; color: #111; border: 1px solid #999; padding: 18px 22px; margin: 0 auto 24px; max-width: 760px; font-size: 14px; }
+.receipt .rc-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }
+.receipt h2 { margin: 0; font-size: 18px; letter-spacing: 0.04em; }
+.receipt .rc-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
+.receipt .rc-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #555; }
+.receipt table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.receipt th, .receipt td { border-bottom: 1px solid #ccc; padding: 4px 6px; text-align: left; white-space: normal; color: #111; }
+.receipt th { font-size: 11px; text-transform: uppercase; color: #555; }
+.receipt tfoot td { font-weight: 700; border-top: 2px solid #111; border-bottom: 0; }
+.receipt .num { text-align: right; }
+.receipt .rc-sign { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 36px; font-size: 12px; }
+.receipt .rc-sign span { display: block; border-top: 1px dotted #555; margin-top: 30px; padding-top: 2px; color: #555; }
+.receipt.storno { opacity: 0.7; }
+.storno-mark { position: absolute; top: 40%; left: 0; right: 0; text-align: center; font-size: 48px; font-weight: 800; color: rgba(200,0,0,0.25); transform: rotate(-12deg); pointer-events: none; }
+@media print {
+  body.print-receipts { background: #fff; }
+  body.print-receipts .admin-bar, body.print-receipts .no-print { display: none !important; }
+  body.print-receipts .container { max-width: none; padding: 0; }
+  .receipt { border: 1px solid #000; margin: 0 0 0; page-break-after: always; break-after: page; max-width: none; }
+  .receipt:last-child { page-break-after: auto; break-after: auto; }
+}
+@media (max-width: 560px) { .stats { grid-template-columns: 1fr; } .receipt .rc-parties, .receipt .rc-sign { grid-template-columns: 1fr; } }
+.pay-table .num { white-space: nowrap; }

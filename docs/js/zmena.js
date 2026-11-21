@@ -108,7 +108,7 @@
         ${list.map((e) => e.cancelled
           ? `<div class="entry-row cancelled-row"><span>${esc(e.tournament)}</span> <span class="badge danger-badge">odhlášeno</span>
               ${editable && data.canRestore ? `<label class="check"><input type="checkbox" data-restore="${esc(e.id)}"> vrátit</label>` : ''}</div>`
-          : `<div class="entry-row"><span>${esc(e.tournament)}</span>
+          : `<div class="entry-row"><span>${esc(e.tournament)}${e.fee != null ? ` <span class="price">${esc(R.formatMoney(e.fee))}</span>` : ''}</span>
               ${editable ? `<label class="check danger-check"><input type="checkbox" data-cancel="${esc(e.id)}"> odhlásit</label>` : '<span class="badge">přihlášen</span>'}</div>`).join('')}
       </div>`;
     }).join('') + (editable && app.entries.filter((e) => !e.cancelled).length > 1
@@ -139,11 +139,26 @@
     const extras = (ev.extras || []).filter((x) => (x.modes || ['individual', 'team']).includes(app.mode));
     $('#extras-card').hidden = !extras.length;
     $('#extras').innerHTML = extras.map((x) => window.Extras.field(x, app.extras[x.id])).join('');
-    window.Extras.bindTotal($('#extras'), () => extras, $('#extras-total'));
+    window.Extras.bindTotal(form, () => extras, $('#extras-total'), feesTotal);
     if (!editable) $$('#extras input, #extras select, #extras textarea').forEach((el) => { el.disabled = true; });
 
     $('#submit').hidden = !editable;
     form.hidden = false;
+  }
+
+  /** Startovné po zamýšlených změnách (bez odhlašovaných, s vracenými). */
+  function feesTotal() {
+    const app = data.application;
+    if (app.mode === 'team') {
+      return app.teams.reduce((sum, g) => {
+        const active = g.cancelled ? !!$(`[data-restore-team="${CSS.escape(g.key)}"]:checked`) : !$(`[data-cancel-team="${CSS.escape(g.key)}"]:checked`);
+        return sum + (active && g.fee ? g.fee : 0);
+      }, 0);
+    }
+    return app.entries.reduce((sum, e) => {
+      const active = e.cancelled ? !!$(`[data-restore="${CSS.escape(e.id)}"]:checked`) : !$(`[data-cancel="${CSS.escape(e.id)}"]:checked`);
+      return sum + (active && e.fee ? e.fee : 0);
+    }, 0);
   }
 
   function collect() {

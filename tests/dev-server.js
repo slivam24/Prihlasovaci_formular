@@ -16,7 +16,11 @@ if (process.env.SEED !== '0') {
   // ukázková akce, rovnou otevřená a s termínem za dva měsíce
   const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   gas.run(`ADMIN_ACTIONS.saveEvent({ event: Object.assign({}, SAMPLE_EVENT_, {
-      status: 'otevreno', deadline: '', dateFrom: '${day(60)}', dateTo: '${day(61)}', contactEmail: 'poradatel@example.cz' }) },
+      status: 'otevreno', deadline: '', dateFrom: '${day(60)}', dateTo: '${day(61)}', contactEmail: 'poradatel@example.cz',
+      issuer: { name: 'Šachový klub Chlumec, z.s.', ico: '12345678', address: 'Muchova 267, 403 39 Chlumec', place: 'Chlumec', cashier: 'Jan Pokladník', note: 'Nejsme plátci DPH.' },
+      tournaments: SAMPLE_EVENT_.tournaments.map((t) => Object.assign({}, t, { fee: t.type === 'team' ? 600 : 250,
+        feeRules: t.type === 'team' ? [] : [{ type: 'women', price: 200 }, { type: 'youth', value: 2008, price: 150 }, { type: 'titles', value: 'GM, IM', price: 0 }] })),
+      extras: SAMPLE_EVENT_.extras.concat([{ label: 'Obědy', type: 'quantity', unit: 'porce', options: ['sobota', 'neděle'], prices: [130, 130] }]) }) },
     { email: 'owner@example.cz', role: 'superadmin' })`);
 }
 

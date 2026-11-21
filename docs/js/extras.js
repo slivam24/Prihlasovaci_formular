@@ -73,14 +73,19 @@
     return (extras || []).some((x) => (x.prices || []).some((p) => typeof p === 'number'));
   }
 
-  /** Součet ceny: element s id totalId se průběžně aktualizuje. */
-  function bindTotal(root, getExtras, totalEl) {
+  /** Součet ceny doplňků (a volitelně startovného z getFees) – element totalEl se průběžně aktualizuje. */
+  function bindTotal(root, getExtras, totalEl, getFees) {
     const update = () => {
       const extras = getExtras();
-      if (!hasPrices(extras)) { totalEl.hidden = true; return; }
-      const total = R.extrasTotal(extras, read(root, extras));
+      const extrasSum = hasPrices(extras) ? R.extrasTotal(extras, read(root, extras)) : 0;
+      const fees = getFees ? getFees() : 0;
+      const total = extrasSum + fees;
       totalEl.hidden = !total;
-      totalEl.innerHTML = `Celkem za doplňky: <strong>${esc(R.formatMoney(total))}</strong>`;
+      if (!total) return;
+      totalEl.innerHTML = getFees
+        ? `K úhradě na místě: <strong>${esc(R.formatMoney(total))}</strong>` +
+          (fees && extrasSum ? ` <span class="small muted">(startovné ${esc(R.formatMoney(fees))}, doplňky ${esc(R.formatMoney(extrasSum))})</span>` : '')
+        : `Celkem za doplňky: <strong>${esc(R.formatMoney(total))}</strong>`;
     };
     root.addEventListener('input', update);
     root.addEventListener('change', update);

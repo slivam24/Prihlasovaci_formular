@@ -16,6 +16,7 @@
   let dbFailed = false;
   let mode = 'individual';
   let cards = []; // hráči v režimu jednotlivců: { el, picker }
+  let updateTotal = null; // přepočet částky k úhradě
   let teamCards = []; // družstva: { el, roster, uid }
   let teamSeq = 0;
 
@@ -65,6 +66,7 @@
             <span class="t-body">
               <span class="t-name">${esc(R.tournamentLabel(t))}</span>
               ${R.ruleText(t) ? `<span class="t-rule">${esc(R.ruleText(t))}</span>` : ''}
+              <span class="t-fee small" hidden></span>
               <span class="t-block" hidden></span>
               <span class="t-warn" hidden></span>
             </span>
@@ -128,7 +130,30 @@
       const w = label.querySelector('.t-warn');
       w.hidden = !warn;
       w.textContent = warn;
+      const fee = R.entryFee(t, p || {});
+      const f = label.querySelector('.t-fee');
+      f.hidden = !fee || !!block;
+      if (fee) f.textContent = `startovné ${R.formatMoney(fee.amount)}${p && fee.reason ? ' (' + fee.reason + ')' : ''}`;
     });
+    if (updateTotal) updateTotal();
+  }
+
+  /** Startovné celé přihlášky (jednotlivci: za hráče a turnaj, družstva: za družstvo). */
+  function feesTotal() {
+    if (!ev) return 0;
+    if (mode === 'team') {
+      return teamCards.reduce((sum, c) => {
+        const fee = R.entryFee(teamTournamentOf(c), {});
+        return sum + (fee ? fee.amount : 0);
+      }, 0);
+    }
+    return cards.reduce((sum, c) => {
+      const p = c.picker.getValue();
+      return sum + checkedIds(c).reduce((s2, id) => {
+        const fee = R.entryFee(individualTournaments().find((t) => t.id === id), p || {});
+        return s2 + (fee ? fee.amount : 0);
+      }, 0);
+    }, 0);
   }
 
   /** Hromadné zaškrtnutí turnaje všem hráčům (jen tam, kam ročníkem patří). */
@@ -153,6 +178,7 @@
   }
 
   function updateSubmitLabel() {
+    if (updateTotal) updateTotal();
     const btn = $('#submit');
     if (mode === 'team') btn.textContent = teamCards.length > 1 ? `Odeslat přihlášku (${teamCards.length} družstev)` : 'Odeslat přihlášku družstva';
     else if (cards.length > 1) btn.textContent = `Odeslat přihlášku (${cards.length} hráčů)`;
@@ -390,7 +416,9 @@
     const syncTournament = () => {
       const tt = teamTournamentOf(card);
       card.roster.setLimits(tt.boards || 4, tt.reserves || 0, tt);
-      $('.team-rule', el).textContent = [R.teamSize(tt), R.ruleText(tt)].filter(Boolean).join(' · ');
+      const tf = R.entryFee(tt, {});
+      $('.team-rule', el).textContent = [R.teamSize(tt), R.ruleText(tt), tf ? 'startovné ' + R.formatMoney(tf.amount) + ' za družstvo' : ''].filter(Boolean).join(' · ');
+      if (updateTotal) updateTotal();
     };
     $('[data-f="tournament"]', el).addEventListener('change', syncTournament);
     $('[data-f="name"]', el).addEventListener('input', () => { renumberTeams(); teamCards.forEach((c) => c.roster.refresh()); });
@@ -422,7 +450,7 @@
   function renderExtras() {
     $('#extras').innerHTML = (ev.extras || []).map((x) =>
       window.Extras.field(x, null, (x.modes || ['individual', 'team']).join(' '))).join('');
-    window.Extras.bindTotal($('#extras'), visibleExtras, $('#extras-total'));
+    updateTotal = window.Extras.bindTotal($('#extras'), visibleExtras, $('#extras-total'), feesTotal);
   }
 
   function visibleExtras() {

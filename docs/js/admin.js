@@ -374,8 +374,37 @@
         ${numInput('capacity', 'Kapacita', t.capacity, 'hráčů / družstev, prázdné = bez omezení')}
         <span class="team-only">${numInput('boards', 'Počet šachovnic', t.boards || 4)}</span>
         <span class="team-only">${numInput('reserves', 'Počet náhradníků', t.reserves || 0)}</span>
+        ${numInput('fee', 'Startovné (Kč)', t.fee, 'u družstev za celé družstvo; prázdné = neuvádět')}
+      </div>
+      <div class="fee-rules-box individual-only">
+        <div class="small"><strong>Slevy ze startovného</strong> <span class="muted">– platí nejnižší cena, kterou hráč splní</span></div>
+        <div class="fee-rules">${(t.feeRules || []).map(feeRuleRow).join('')}</div>
+        <button type="button" class="link" data-add-rule>+ přidat slevu</button>
       </div>
     </div>`;
+  }
+
+  function feeRuleRow(r) {
+    r = r || { type: 'women', value: '', price: '' };
+    return `<div class="fee-rule">
+      <select data-r="type">${options(R.FEE_RULE_TYPES, r.type)}</select>
+      <input data-r="value" value="${esc(r.value == null ? '' : r.value)}" placeholder="${r.type === 'titles' ? 'GM, IM' : 'hodnota'}">
+      <label class="inline">cena <input data-r="price" type="number" min="0" value="${r.price == null ? '' : esc(r.price)}"> Kč</label>
+      <button type="button" class="link danger" data-del-rule title="Odebrat slevu">✕</button>
+    </div>`;
+  }
+
+  function bindFeeRule(row) {
+    const type = $('[data-r="type"]', row);
+    const value = $('[data-r="value"]', row);
+    const sync = () => {
+      value.hidden = type.value === 'women';
+      value.placeholder = { youth: 'např. 2008', senior: 'např. 1961', titles: 'např. GM, IM, WGM', rating: 'např. 2300' }[type.value] || '';
+      value.inputMode = type.value === 'titles' ? 'text' : 'numeric';
+    };
+    type.addEventListener('change', sync);
+    sync();
+    $('[data-del-rule]', row).addEventListener('click', () => row.remove());
   }
 
   // Předvolby pro editor akce – pořadatel jen upraví názvy, ceny a termíny.
@@ -445,6 +474,7 @@
     const sync = () => {
       if (card.classList.contains('tour-card')) {
         $$('.team-only', card).forEach((el) => { el.hidden = typeSel.value !== 'team'; });
+        $$('.individual-only', card).forEach((el) => { el.hidden = typeSel.value === 'team'; });
       } else {
         $('.options-field', card).hidden = !['checkboxes', 'select', 'quantity'].includes(typeSel.value);
         $('.unit-field', card).hidden = typeSel.value !== 'quantity';
@@ -452,6 +482,14 @@
     };
     typeSel.addEventListener('change', sync);
     sync();
+    $$('.fee-rule', card).forEach(bindFeeRule);
+    const addRule = $('[data-add-rule]', card);
+    if (addRule) {
+      addRule.addEventListener('click', () => {
+        $('.fee-rules', card).insertAdjacentHTML('beforeend', feeRuleRow());
+        bindFeeRule($('.fee-rules', card).lastElementChild);
+      });
+    }
     $('[data-remove]', card).addEventListener('click', () => {
       if (card.dataset.id && !confirm('Odebrat? Turnaj s přihláškami odebrat nejde.')) return;
       card.remove();
@@ -479,6 +517,7 @@
       pendingImport = null;
     }
     const isOwner = !id || me.role === 'superadmin' || ev.createdBy === me.email;
+    const iss = ev.issuer || {};
     const statusOpts = {};
     Object.keys(R.STATUS_LABELS).forEach((k) => { statusOpts[k] = R.STATUS_LABELS[k]; });
 
@@ -530,6 +569,21 @@
           </p>
         </section>
 
+        <section class="card">
+          <h2>Startovné a doklady o zaplacení</h2>
+          <p class="muted small">Startovné a slevy se nastavují u turnajů výše. Údaje níže se tisknou na příjmové pokladní doklady.</p>
+          <div class="grid">
+            <label class="wide">Příjemce – název klubu / spolku<input name="issuerName" value="${esc(iss.name || '')}" placeholder="např. Šachový klub Chlumec, z.s."></label>
+            <label>IČO<input name="issuerIco" value="${esc(iss.ico || '')}"></label>
+            <label>Místo vystavení<input name="issuerPlace" value="${esc(iss.place || '')}" placeholder="např. Chlumec"></label>
+            <label class="wide">Adresa (sídlo)<input name="issuerAddress" value="${esc(iss.address || '')}"></label>
+            <label>Vystavuje (pokladník)<input name="issuerCashier" value="${esc(iss.cashier || '')}"></label>
+            <label>Řada čísel dokladů<input name="issuerPrefix" value="${esc(iss.prefix || '')}" placeholder="${esc(R.eventYear(ev) + '-')}">
+              <span class="hint">Doklady se číslují ${esc((iss.prefix || R.eventYear(ev) + '-') + '0001')}, …</span></label>
+            <label class="wide">Poznámka na dokladu<input name="issuerNote" value="${esc(iss.note || '')}" placeholder="např. Nejsme plátci DPH."></label>
+          </div>
+        </section>
+
         <div id="form-errors"></div>
         <p class="actions sticky-actions">
           <button type="submit" class="primary">Uložit akci</button>
@@ -563,12 +617,19 @@
         dateFrom: f.dateFrom.value, dateTo: f.dateTo.value, deadline: f.deadline.value,
         slug: f.slug.value, infoUrl: f.infoUrl.value, intro: f.intro.value,
         contactEmail: f.contactEmail.value, admins: f.admins.value,
+        issuer: {
+          name: f.issuerName.value, ico: f.issuerIco.value, address: f.issuerAddress.value, place: f.issuerPlace.value,
+          cashier: f.issuerCashier.value, prefix: f.issuerPrefix.value, note: f.issuerNote.value,
+        },
         tournaments: $$('.tour-card', tours).map((c) => ({
           id: c.dataset.id || undefined,
           name: val(c, 'name'), short: val(c, 'short'), day: val(c, 'day'), type: val(c, 'type'),
           minBirthYear: val(c, 'minBirthYear'), maxBirthYear: val(c, 'maxBirthYear'),
           warnMaxRating: val(c, 'warnMaxRating'), capacity: val(c, 'capacity'),
-          boards: val(c, 'boards'), reserves: val(c, 'reserves'),
+          boards: val(c, 'boards'), reserves: val(c, 'reserves'), fee: val(c, 'fee'),
+          feeRules: $$('.fee-rule', c).map((r) => ({
+            type: $('[data-r="type"]', r).value, value: $('[data-r="value"]', r).value.trim(), price: $('[data-r="price"]', r).value,
+          })),
         })),
         extras: $$('.extra-card', extras).map((c) => {
           const m = val(c, 'modes');
@@ -756,6 +817,7 @@
           <button type="button" class="button ${canOpen ? 'primary' : ''}" id="toggle-status">${canOpen ? 'Otevřít přihlašování' : 'Uzavřít přihlašování'}</button>
           <a class="button" href="#/akce/${esc(ev.id)}/upravit">Upravit akci</a>
           <button type="button" class="button" id="copy-event">Kopírovat akci</button>
+          <a class="button" href="#/akce/${esc(ev.id)}/platby">Platby a doklady</a>
         </div>
       </div>
       <p class="links">
@@ -1024,6 +1086,268 @@
     });
   }
 
+
+  // =====================================================================
+  // Platby a doklady
+  // =====================================================================
+
+  let pay = null; // { event, registrations, receipts, items, filter, selected:Set }
+
+  async function viewPayments(id) {
+    loading('Načítám platby…');
+    const data = await call('event', { id });
+    pay = {
+      event: data.event, registrations: data.registrations, receipts: data.receipts || [],
+      filter: { club: '', q: '', category: '', state: 'unpaid' }, selected: new Set(),
+    };
+    pay.items = window.Payments.buildItems(pay.event, pay.registrations);
+    renderPayments();
+  }
+
+  function payFiltered() {
+    const paid = window.Payments.paidMap(pay.receipts);
+    const f = pay.filter;
+    const q = R.norm(f.q);
+    return pay.items.filter((it) => {
+      if (f.club && it.club !== f.club) return false;
+      if (f.category && it.category !== f.category) return false;
+      if (f.state === 'unpaid' && paid[it.key]) return false;
+      if (f.state === 'paid' && !paid[it.key]) return false;
+      if (q && !R.norm([it.person, it.label, it.club, it.applicationId, it.email].join(' ')).includes(q)) return false;
+      return true;
+    }).sort((a, b) => String(a.club).localeCompare(String(b.club), 'cs')
+      || String(a.applicationId).localeCompare(String(b.applicationId)) || String(a.person).localeCompare(String(b.person), 'cs'));
+  }
+
+  function renderPayments() {
+    const ev = pay.event;
+    const paid = window.Payments.paidMap(pay.receipts);
+    const items = payFiltered();
+    const sum = (list) => list.reduce((a, it) => a + it.amount, 0);
+    const allPaid = pay.items.filter((it) => paid[it.key]);
+    const clubs = Array.from(new Set(pay.items.map((it) => it.club).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'cs'));
+    const cats = Array.from(new Set(pay.items.map((it) => it.category)));
+    const sel = (opts, value) => opts.map(([v, l]) => `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(l)}</option>`).join('');
+    const iss = ev.issuer || {};
+
+    app.innerHTML = `
+      <p class="small"><a href="#/akce/${esc(ev.id)}">← ${esc(ev.name)}</a></p>
+      <div class="page-head"><h1>Platby a doklady</h1>
+        <div class="actions"><button type="button" class="button" id="pay-export">Export plateb (.xlsx)</button></div></div>
+      ${iss.name ? '' : `<p class="notice-inline">Pro vystavování dokladů nejdřív vyplňte údaje klubu v <a href="#/akce/${esc(ev.id)}/upravit">nastavení akce</a> (sekce Startovné a doklady).</p>`}
+      ${pay.items.length ? '' : '<p class="notice-inline">Akce nemá žádné placené položky – nastavte startovné u turnajů nebo ceny u doplňujících otázek.</p>'}
+      <div class="stats">
+        <div><span class="muted small">K úhradě celkem</span><strong>${esc(R.formatMoney(sum(pay.items)))}</strong></div>
+        <div><span class="muted small">Zaplaceno</span><strong>${esc(R.formatMoney(sum(allPaid)))}</strong></div>
+        <div><span class="muted small">Zbývá</span><strong>${esc(R.formatMoney(sum(pay.items) - sum(allPaid)))}</strong></div>
+      </div>
+
+      <section class="card">
+        <div class="filters">
+          <label>Klub<select id="pf-club">${sel([['', 'všechny kluby']].concat(clubs.map((c) => [c, c])), pay.filter.club)}</select></label>
+          <label>Položky<select id="pf-cat">${sel([['', 'všechny']].concat(cats.map((c) => [c, c])), pay.filter.category)}</select></label>
+          <label>Stav<select id="pf-state">${sel([['unpaid', 'nezaplacené'], ['paid', 'zaplacené'], ['', 'vše']], pay.filter.state)}</select></label>
+          <label class="grow">Hledat<input id="pf-q" value="${esc(pay.filter.q)}" placeholder="jméno, číslo přihlášky, e-mail"></label>
+        </div>
+        <p class="small muted">Zobrazeno ${items.length} položek za ${esc(R.formatMoney(sum(items)))}.</p>
+        ${items.length ? `<div class="table-wrap"><table class="admin-table pay-table">
+          <thead><tr><th><input type="checkbox" id="pf-all" title="Vybrat všechny nezaplacené zobrazené"></th>
+            <th>Za koho</th><th>Klub</th><th>Položka</th><th class="num">Kč</th><th>Přihláška</th><th>Stav</th></tr></thead>
+          <tbody>${items.map((it) => {
+            const rc = paid[it.key];
+            return `<tr class="${rc ? 'paid' : ''}">
+              <td>${rc ? '' : `<input type="checkbox" data-item="${esc(it.key)}" ${pay.selected.has(it.key) ? 'checked' : ''}>`}</td>
+              <td>${esc(it.person)}</td><td class="small">${esc(it.club)}</td><td>${esc(it.label)}</td>
+              <td class="num">${esc(R.formatMoney(it.amount))}</td>
+              <td class="small">${esc(it.applicationId)}<br><span class="muted">${esc(it.email || '')}</span></td>
+              <td class="small">${rc ? `<a href="#/akce/${esc(ev.id)}/doklady/${esc(rc.id)}">✓ ${esc(rc.number)}</a>` : '<span class="muted">nezaplaceno</span>'}</td>
+            </tr>`;
+          }).join('')}</tbody></table></div>` : '<p class="muted">Žádné položky neodpovídají filtru.</p>'}
+      </section>
+
+      <div class="pay-bar" id="pay-bar" hidden>
+        <span id="pay-sel"></span>
+        <button type="button" class="primary" data-issue="one">Vystavit jeden doklad</button>
+        <button type="button" class="button" data-issue="person">Doklady po hráčích</button>
+        <button type="button" class="button" data-issue="app">Doklady po přihláškách</button>
+        <button type="button" class="link" id="pay-clear">zrušit výběr</button>
+      </div>
+
+      <section class="card">
+        <h2>Vystavené doklady</h2>
+        ${pay.receipts.length ? `<div class="table-wrap"><table class="admin-table">
+          <thead><tr><th>Číslo</th><th>Datum</th><th>Přijato od</th><th class="num">Kč</th><th>Vystavil</th><th></th></tr></thead>
+          <tbody>${pay.receipts.slice().sort((a, b) => String(b.number).localeCompare(String(a.number))).map((r) => `
+            <tr class="${r.status ? 'cancelled' : ''}">
+              <td><a href="#/akce/${esc(ev.id)}/doklady/${esc(r.id)}">${esc(r.number)}</a> ${r.status ? '<span class="badge danger-badge">stornováno</span>' : ''}</td>
+              <td class="small">${esc(new Date(r.issuedAt).toLocaleString('cs-CZ'))}</td>
+              <td>${esc(r.payer)}${r.payerClub ? `<div class="small muted">${esc(r.payerClub)}</div>` : ''}</td>
+              <td class="num">${esc(R.formatMoney(r.total))}</td>
+              <td class="small">${esc(r.issuedBy)}</td>
+              <td class="row-actions"><a href="#/akce/${esc(ev.id)}/doklady/${esc(r.id)}">Tisk</a>
+                ${r.status ? '' : `<button type="button" class="link danger" data-storno="${esc(r.id)}">Storno</button>`}</td>
+            </tr>`).join('')}</tbody></table></div>` : '<p class="muted">Zatím žádné doklady.</p>'}
+      </section>`;
+
+    const setF = (k, v) => { pay.filter[k] = v; pay.selected.clear(); renderPayments(); };
+    $('#pf-club').addEventListener('change', (e) => setF('club', e.target.value));
+    $('#pf-cat').addEventListener('change', (e) => setF('category', e.target.value));
+    $('#pf-state').addEventListener('change', (e) => setF('state', e.target.value));
+    let timer = null;
+    $('#pf-q').addEventListener('input', (e) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { pay.filter.q = e.target.value; renderPayments(); const q = $('#pf-q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 300);
+    });
+    const all = $('#pf-all');
+    if (all) {
+      const unpaid = items.filter((it) => !paid[it.key]);
+      all.checked = unpaid.length > 0 && unpaid.every((it) => pay.selected.has(it.key));
+      all.addEventListener('change', () => {
+        unpaid.forEach((it) => { if (all.checked) pay.selected.add(it.key); else pay.selected.delete(it.key); });
+        renderPayments();
+      });
+    }
+    $$('[data-item]').forEach((c) => c.addEventListener('change', () => {
+      if (c.checked) pay.selected.add(c.dataset.item); else pay.selected.delete(c.dataset.item);
+      updatePayBar();
+    }));
+    $$('[data-issue]').forEach((b) => b.addEventListener('click', () => issueDialog(b.dataset.issue)));
+    $('#pay-clear').addEventListener('click', () => { pay.selected.clear(); renderPayments(); });
+    $$('[data-storno]').forEach((b) => b.addEventListener('click', async () => {
+      const r = pay.receipts.find((x) => x.id === b.dataset.storno);
+      if (!confirm(`Stornovat doklad ${r.number} (${r.payer}, ${R.formatMoney(r.total)})? Položky budou znovu nezaplacené.`)) return;
+      try {
+        pay.receipts = (await call('cancelReceipt', { id: r.id })).receipts;
+        renderPayments();
+      } catch (e) { alert(e.message); }
+    }));
+    $('#pay-export').addEventListener('click', exportPayments);
+    updatePayBar();
+  }
+
+  function updatePayBar() {
+    const chosen = pay.items.filter((it) => pay.selected.has(it.key));
+    $('#pay-bar').hidden = !chosen.length;
+    $('#pay-sel').innerHTML = `Vybráno <strong>${chosen.length}</strong> položek za <strong>${esc(R.formatMoney(chosen.reduce((a, it) => a + it.amount, 0)))}</strong>`;
+  }
+
+  /** Návrh, od koho platba je: jeden hráč → hráč; jinak společný klub. */
+  function suggestPayer(list) {
+    const persons = Array.from(new Set(list.map((it) => it.person)));
+    const clubs = Array.from(new Set(list.map((it) => it.club).filter(Boolean)));
+    return {
+      payer: persons.length === 1 && !/^přihláška /.test(persons[0]) ? persons[0] : (clubs.length === 1 ? clubs[0] : ''),
+      payerClub: clubs.length === 1 ? clubs[0] : '',
+    };
+  }
+
+  function issueDialog(kind) {
+    const chosen = pay.items.filter((it) => pay.selected.has(it.key));
+    if (!chosen.length) return;
+    let groups;
+    if (kind === 'one') groups = [chosen];
+    else {
+      const by = {};
+      chosen.forEach((it) => { const k = kind === 'person' ? it.person : it.applicationId; (by[k] = by[k] || []).push(it); });
+      groups = Object.keys(by).map((k) => by[k]);
+    }
+    const total = (list) => list.reduce((a, it) => a + it.amount, 0);
+    openDialog(`<form class="dialog-form" novalidate>
+      <h2>${groups.length > 1 ? `Vystavit ${groups.length} dokladů` : 'Vystavit doklad'}</h2>
+      <p class="muted small">Příjmový pokladní doklad, platba hotově. Položky se označí jako zaplacené.</p>
+      <div class="issue-list">${groups.map((g, i) => {
+        const sug = suggestPayer(g);
+        return `<fieldset class="issue-group">
+          <legend>${groups.length > 1 ? `${i + 1}. doklad – ` : ''}${esc(R.formatMoney(total(g)))}</legend>
+          <ul class="small">${g.map((it) => `<li>${esc(it.label)} – ${esc(it.person)}: ${esc(R.formatMoney(it.amount))}</li>`).join('')}</ul>
+          <div class="grid">
+            <label>Přijato od <span class="req">*</span><input name="payer${i}" value="${esc(sug.payer)}"></label>
+            <label>Klub / organizace<input name="club${i}" value="${esc(sug.payerClub)}"></label>
+          </div>
+        </fieldset>`;
+      }).join('')}</div>
+      <label class="block">Poznámka na doklad (nepovinné)<input name="note"></label>
+      <div class="errors" hidden></div>
+      <p class="actions"><button class="primary">Vystavit a vytisknout</button><button type="button" data-close>Zrušit</button></p>
+    </form>`, (d) => {
+      $('form', d).addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const f = e.target;
+        const box = $('.errors', d);
+        const receipts = groups.map((g, i) => ({
+          payer: f['payer' + i].value.trim(), payerClub: f['club' + i].value.trim(), note: f.note.value.trim(),
+          items: g.map((it) => ({ key: it.key, label: it.label, person: it.person, amount: it.amount })),
+        }));
+        if (receipts.some((r) => !r.payer)) { box.textContent = 'Vyplňte u každého dokladu, od koho byla platba přijata.'; box.hidden = false; return; }
+        try {
+          const res = await call('issueReceipts', { eventId: pay.event.id, receipts });
+          pay.receipts = res.receipts;
+          pay.selected.clear();
+          dialog.close();
+          location.hash = `#/akce/${pay.event.id}/doklady/${res.issued.map((r) => r.id).join(',')}`;
+        } catch (err) {
+          box.textContent = err.message;
+          box.hidden = false;
+        }
+      });
+    });
+  }
+
+  function receiptHtml(r) {
+    const iss = r.issuer || {};
+    const P = window.Payments;
+    const date = new Date(r.issuedAt);
+    return `<article class="receipt${r.status ? ' storno' : ''}">
+      ${r.status ? '<div class="storno-mark">STORNOVÁNO</div>' : ''}
+      <header class="rc-head"><h2>PŘÍJMOVÝ POKLADNÍ DOKLAD</h2><div>č. <strong>${esc(r.number)}</strong></div></header>
+      <div class="rc-parties">
+        <div><span class="rc-label">Příjemce</span><strong>${esc(iss.name || '')}</strong><br>${esc(iss.address || '')}${iss.ico ? `<br>IČO: ${esc(iss.ico)}` : ''}</div>
+        <div><span class="rc-label">Přijato od</span><strong>${esc(r.payer)}</strong>${r.payerClub ? `<br>${esc(r.payerClub)}` : ''}</div>
+      </div>
+      <table class="rc-items"><thead><tr><th>Účel platby</th><th>Za koho</th><th class="num">Částka</th></tr></thead>
+        <tbody>${r.items.map((it) => `<tr><td>${esc(it.label)}</td><td>${esc(it.person)}</td><td class="num">${esc(R.formatMoney(it.amount))}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="2">Celkem</td><td class="num">${esc(R.formatMoney(r.total))}</td></tr></tfoot></table>
+      <p><span class="rc-label">Slovy</span>${esc(P.amountWords(r.total))}</p>
+      <p class="rc-meta">Způsob úhrady: ${esc(r.method || 'hotově')} · Datum: ${esc(date.toLocaleDateString('cs-CZ'))}${iss.place ? ` · Místo: ${esc(iss.place)}` : ''}</p>
+      ${r.note ? `<p class="small">${esc(r.note)}</p>` : ''}
+      ${iss.note ? `<p class="small">${esc(iss.note)}</p>` : ''}
+      <div class="rc-sign">
+        <div>Vystavil: ${esc(iss.cashier || '')}<span>podpis</span></div>
+        <div>Přijal (pokladník)<span>podpis</span></div>
+        <div>Zaplatil<span>podpis</span></div>
+      </div>
+    </article>`;
+  }
+
+  async function viewReceipts(eventId, ids) {
+    loading('Připravuji doklady…');
+    if (!pay || pay.event.id !== eventId) await viewPayments(eventId);
+    const list = ids.split(',').map((id) => pay.receipts.find((r) => r.id === id)).filter(Boolean);
+    document.body.classList.add('print-receipts');
+    app.innerHTML = `
+      <div class="no-print actions print-bar">
+        <a href="#/akce/${esc(eventId)}/platby">← Platby a doklady</a>
+        <button type="button" class="primary" id="print">Vytisknout / uložit jako PDF</button>
+        <span class="small muted">${list.length > 1 ? `${list.length} dokladů – každý vyjde na samostatné stránce.` : ''}</span>
+      </div>
+      ${list.map(receiptHtml).join('')}`;
+    $('#print').addEventListener('click', () => window.print());
+  }
+
+  async function exportPayments() {
+    const paid = window.Payments.paidMap(pay.receipts);
+    const head = ['Za koho', 'Klub', 'Kategorie', 'Položka', 'Kč', 'Přihláška', 'E-mail', 'Zaplaceno dokladem'];
+    const rows = payFiltered().map((it) => [it.person, it.club, it.category, it.label, it.amount, it.applicationId, it.email, paid[it.key] ? paid[it.key].number : '']);
+    const rHead = ['Číslo', 'Datum', 'Přijato od', 'Klub', 'Kč', 'Stav', 'Vystavil', 'Položky'];
+    const rRows = pay.receipts.map((r) => [r.number, new Date(r.issuedAt).toLocaleString('cs-CZ'), r.payer, r.payerClub, r.total, r.status || 'platný', r.issuedBy,
+      r.items.map((it) => `${it.label} (${it.person}) ${it.amount}`).join('; ')]);
+    try {
+      await downloadXlsx(`${fileSafe(pay.event.slug)}_platby.xlsx`, [
+        { name: 'Položky', rows: [head].concat(rows) }, { name: 'Doklady', rows: [rHead].concat(rRows) },
+      ]);
+    } catch (e) { alert(e.message); }
+  }
+
   // =====================================================================
   // Správci
   // =====================================================================
@@ -1094,6 +1418,7 @@
     if (!getToken()) { showLogin(); return; }
     const h = location.hash.replace(/^#/, '') || '/';
     if (dialog.open) dialog.close();
+    document.body.classList.remove('print-receipts');
     try {
       if (!me && h !== '/') {
         me = (await call('me')).user;
@@ -1103,6 +1428,8 @@
       if (h === '/') await viewEvents();
       else if (h === '/akce/nova') await viewEditor(null);
       else if ((m = h.match(/^\/akce\/([^/]+)\/upravit$/))) await viewEditor(m[1]);
+      else if ((m = h.match(/^\/akce\/([^/]+)\/platby$/))) await viewPayments(m[1]);
+      else if ((m = h.match(/^\/akce\/([^/]+)\/doklady\/([^/]+)$/))) await viewReceipts(m[1], m[2]);
       else if ((m = h.match(/^\/akce\/([^/]+)$/))) await viewEvent(m[1]);
       else if (h === '/spravci') await viewUsers();
       else location.hash = '#/';
