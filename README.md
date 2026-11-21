@@ -86,7 +86,7 @@ Workflow `.github/workflows/apps-script.yml` po každé změně v `apps-script/`
 (nástrojem [clasp](https://github.com/google/clasp)) a aktualizuje stávající nasazení. Jednorázové nastavení:
 
 1. Na https://script.google.com/home/usersettings zapněte **Google Apps Script API**.
-2. Otevřete https://shell.cloud.google.com a spusťte `npx @google/clasp@2.4.2 login --no-localhost`.
+2. Otevřete https://shell.cloud.google.com a spusťte `npx @google/clasp@3.4.1 login --no-localhost`.
    Otevřete vypsaný odkaz, přihlaste se a povolte přístup. Prohlížeč pak skončí na nefunkční stránce
    `localhost…` – celou adresu z adresního řádku zkopírujte a vložte zpět do Cloud Shellu.
 3. Příkazem `cat ~/.clasprc.json` vypište přihlašovací údaje a celý výstup zkopírujte.
