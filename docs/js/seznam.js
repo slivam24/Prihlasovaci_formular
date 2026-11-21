@@ -62,7 +62,9 @@
     if (!slug) { location.replace('./'); return; }
     try {
       render(await window.Api.get('list', { slug }));
+      document.getElementById('loading').hidden = true;
     } catch (e) {
+      document.getElementById('loading').hidden = true;
       $('#status').textContent = 'Seznam se nepodařilo načíst: ' + e.message;
     }
   }

@@ -86,7 +86,7 @@ function createGas(opts) {
       getUuid: () => crypto.randomUUID(),
     },
     CacheService: {
-      getScriptCache: () => ({ get: (k) => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; } }),
+      getScriptCache: () => ({ get: (k) => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }),
     },
     PropertiesService: {
       getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; } }),

@@ -67,5 +67,24 @@
     return new URLSearchParams(global.location.search).get(name);
   }
 
-  global.Api = { loadConfig, get, post, param };
+  // Lokální kopie posledních dat (akce) – stránka se ukáže hned a na pozadí se obnoví.
+  function cacheRead(key, maxAgeMs) {
+    try {
+      const raw = global.localStorage.getItem('cache:' + key);
+      if (!raw) return null;
+      const item = JSON.parse(raw);
+      if (maxAgeMs && Date.now() - item.at > maxAgeMs) return null;
+      return item.data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function cacheWrite(key, data) {
+    try {
+      global.localStorage.setItem('cache:' + key, JSON.stringify({ at: Date.now(), data }));
+    } catch (e) { /* plné úložiště / soukromé okno – nevadí */ }
+  }
+
+  global.Api = { loadConfig, get, post, param, cacheRead, cacheWrite };
 })(window);

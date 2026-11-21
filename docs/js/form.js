@@ -556,16 +556,7 @@
     renderFinder();
   }
 
-  async function init() {
-    if (!slug) { location.replace('./'); return; }
-    try {
-      ev = (await window.Api.get('event', { slug })).event;
-    } catch (err) {
-      $('#loading').hidden = true;
-      $('#closed').textContent = err.message;
-      $('#closed').hidden = false;
-      return;
-    }
+  function start() {
     $('#loading').hidden = true;
     renderHeader();
     if (R.isClosed(ev)) {
@@ -584,9 +575,49 @@
     renderExtras();
     $$('[name="mode"]', form).forEach((r) => r.addEventListener('change', applyMode));
     form.addEventListener('submit', onSubmit);
+    form.addEventListener('input', () => { pristine = false; }, { once: true });
     applyMode();
     form.hidden = false;
-    loadPlayers();
+  }
+
+  let pristine = true;
+
+  async function init() {
+    if (!slug) { location.replace('./'); return; }
+    loadPlayers(); // listina hráčů se stahuje souběžně s akcí
+    const cached = window.Api.cacheRead('event:' + slug, 7 * 864e5);
+    const fresh = window.Api.get('event', { slug }).then((r) => {
+      window.Api.cacheWrite('event:' + slug, r.event);
+      return r.event;
+    });
+    if (cached) {
+      ev = cached;
+      start();
+      fresh.then((f) => {
+        if (JSON.stringify(f) === JSON.stringify(cached)) return;
+        if (pristine) { location.reload(); return; }
+        const box = $('#updated');
+        box.innerHTML = 'Pořadatel mezitím upravil údaje o akci. <button type="button" class="link">Načíst znovu</button>';
+        box.querySelector('button').addEventListener('click', () => location.reload());
+        box.hidden = false;
+      }).catch((err) => {
+        if (err.code === 'not_found') {
+          form.hidden = true;
+          $('#closed').textContent = err.message;
+          $('#closed').hidden = false;
+        }
+      });
+      return;
+    }
+    try {
+      ev = await fresh;
+    } catch (err) {
+      $('#loading').hidden = true;
+      $('#closed').textContent = err.message;
+      $('#closed').hidden = false;
+      return;
+    }
+    start();
   }
 
   init();

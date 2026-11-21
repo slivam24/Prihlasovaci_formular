@@ -16,8 +16,12 @@
       <p class="links"><a id="info-link" target="_blank" rel="noopener" hidden>Propozice</a> <a id="list-link" href="seznam.html">Seznam přihlášených</a></p>
     </header>
 
-    <p id="loading" class="muted">Načítám…</p>
+    <div id="loading" class="loader-card card" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Načítám přihlášku…<br><span class="small muted">První načtení může trvat několik sekund.</span></span>
+    </div>
     <div id="closed" class="card notice" hidden></div>
+    <div id="updated" class="card notice-inline" hidden></div>
 
     <div class="form-layout" id="layout">
     <form id="form" class="card" novalidate hidden>

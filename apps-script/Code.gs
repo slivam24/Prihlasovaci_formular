@@ -57,8 +57,12 @@ const YES = 'ANO';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   return respond_(() => {
-    if (p.action === 'events') return { events: listPublicEvents_() };
-    if (p.action === 'event') return { event: publicEvent_(loadEventBySlug_(p.slug, true)) };
+    if (p.action === 'events') return { events: cachedPublicEvents_() };
+    if (p.action === 'event') {
+      const hit = cachedPublicEvents_().find((e) => e.slug === String(p.slug || ''));
+      if (!hit) throw userError_('Akce nebyla nalezena.', 'not_found');
+      return { event: hit };
+    }
     if (p.action === 'list') return publicList_(loadEventBySlug_(p.slug, true));
     if (p.action === 'application') {
       const app = findApplication_(p.token);
@@ -254,6 +258,24 @@ function publicEvent_(ev) {
     .forEach((k) => { out[k] = ev[k]; });
   out.tournaments = ev.tournaments.map(stripRow_);
   return out;
+}
+
+const PUBLIC_EVENTS_CACHE_ = 'public_events_v1';
+
+/** Veřejné akce z cache (rychlé načtení webu); smaže se při každé úpravě akce. */
+function cachedPublicEvents_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(PUBLIC_EVENTS_CACHE_);
+  if (hit) return JSON.parse(hit);
+  const events = listPublicEvents_();
+  try {
+    cache.put(PUBLIC_EVENTS_CACHE_, JSON.stringify(events), 600);
+  } catch (e) { /* příliš velké pro cache – nevadí */ }
+  return events;
+}
+
+function clearPublicCache_() {
+  CacheService.getScriptCache().remove(PUBLIC_EVENTS_CACHE_);
 }
 
 function listPublicEvents_() {
@@ -1019,6 +1041,7 @@ const ADMIN_ACTIONS = {
       insert_('tournaments', toInsert);
       SpreadsheetApp.flush();
       Object.keys(DB_CACHE_).forEach((k) => delete DB_CACHE_[k]);
+      clearPublicCache_();
       return { event: stripRow_(loadEventById_(evRow.id)) };
     });
   },
@@ -1050,6 +1073,7 @@ const ADMIN_ACTIONS = {
       }
       remove_('tournaments', table_('tournaments').rows.filter((r) => r.eventId === ev.id));
       remove_('events', table_('events').rows.filter((r) => r.id === ev.id));
+      clearPublicCache_();
       return {};
     });
   },

@@ -12,9 +12,13 @@
       <h1 id="site-name">Přihlášky na šachové turnaje</h1>
       <p class="muted">Vyberte akci, na kterou se chcete přihlásit.</p>
     </header>
-    <p id="status" class="muted">Načítám akce…</p>
+    <div id="loader" class="loader-card card" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Načítám turnaje…<br><span class="small muted">První načtení může trvat několik sekund.</span></span>
+    </div>
+    <p id="status" class="muted" hidden></p>
     <div id="events"></div>
-    <footer class="footer"><a href="admin.html">Pro pořadatele</a></footer>
+    <footer class="footer" id="footer" hidden><a href="admin.html" class="muted">Přihlášení pro pořadatele</a></footer>
   </main>
   <script src="js/api.js"></script>
   <script src="js/rules.js"></script>
