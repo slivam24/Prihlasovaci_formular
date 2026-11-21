@@ -61,6 +61,9 @@ test('filtr pro hromadný výběr: klub, ročník, pohlaví, aktivní', () => {
   assert.deepEqual(names(db.filter({ club: 'SPARTAK ústí', sex: 'F' })), ['Bažantová Marie']);
   assert.deepEqual(names(db.filter({ club: 'unichess' })), ['Martin Jan', 'Červený Miroslav'], 'podle ratingu');
   assert.deepEqual(names(db.filter({ club: 'unichess', activeOnly: true })), ['Martin Jan'], 'N = neaktivní');
+  assert.deepEqual(names(db.filter({ club: 'unichess', membership: 'active' })), ['Martin Jan']);
+  assert.deepEqual(names(db.filter({ club: 'unichess', membership: 'inactive' })), ['Červený Miroslav']);
+  assert.deepEqual(names(db.filter({ club: 'unichess', membership: '' })), ['Martin Jan', 'Červený Miroslav']);
   assert.equal(db.filter({ yearFrom: 1900 }, 2).players.length, 2);
   assert.equal(db.filter({ yearFrom: 1900 }, 2).total, 6);
   assert.ok(db.clubNames().includes('Unichess'));

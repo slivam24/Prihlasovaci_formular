@@ -23,6 +23,7 @@
   // Kategorie členů v LOK, které bereme jako aktivní: A dospělí, B senioři, C mládež,
   // D nejmladší, I individuální členové. (N = neaktivní – téměř nikdo z nich nemá partie.)
   const ACTIVE_STATUSES = ['A', 'B', 'C', 'D', 'I'];
+  const isActive = (p) => ACTIVE_STATUSES.includes(p.status);
 
   class PlayerDB {
     constructor(data) {
@@ -88,7 +89,9 @@
         }
         if (from && p.year < from) continue;
         if (to && p.year > to) continue;
-        if (f.activeOnly && !ACTIVE_STATUSES.includes(p.status)) continue;
+        const membership = f.membership || (f.activeOnly ? 'active' : '');
+        if (membership === 'active' && !isActive(p)) continue;
+        if (membership === 'inactive' && isActive(p)) continue;
         if (f.sex === 'F' && p.sex !== 'F') continue;
         if (f.sex === 'M' && p.sex === 'F') continue;
         out.push(p);
@@ -139,7 +142,7 @@
     }
   }
 
-  const api = { PlayerDB, norm, splitName, ACTIVE_STATUSES };
+  const api = { PlayerDB, norm, splitName, ACTIVE_STATUSES, isActive };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.Players = api;
 })(typeof window !== 'undefined' ? window : globalThis);

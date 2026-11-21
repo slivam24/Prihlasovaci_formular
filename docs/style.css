@@ -257,8 +257,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 .finder summary { cursor: pointer; }
 .finder-body > * + * { margin-top: 12px; }
 .finder-filters { grid-template-columns: 1fr 1fr; }
-.grid label.f-active { display: flex; align-items: center; gap: 8px; font-weight: 400; align-self: end; margin: 0 0 10px; }
-.grid label.f-active input { width: auto; margin: 0; }
 .finder-list { display: flex; flex-direction: column; gap: 2px; }
 .finder-row { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
 .finder-row:hover { background: var(--accent-soft); }

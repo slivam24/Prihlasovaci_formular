@@ -183,7 +183,7 @@
       clearTimeout(finderTimer);
       finderTimer = setTimeout(runFinder, 150);
     }));
-    ['#f-sex', '#f-active'].forEach((s) => $(s).addEventListener('change', runFinder));
+    ['#f-sex', '#f-member'].forEach((s) => $(s).addEventListener('change', runFinder));
     $('#f-add').addEventListener('click', addFromFinder);
     const only = individualTournaments().length === 1;
     $('#f-tours').innerHTML = '<span class="small">Přihlásit do:</span>' + individualTournaments().map((t) => {
@@ -229,7 +229,7 @@
       $('#f-actions').hidden = true;
       return;
     }
-    const res = db.filter({ club, yearFrom: from, yearTo: to, sex: $('#f-sex').value, activeOnly: $('#f-active').checked }, FINDER_LIMIT);
+    const res = db.filter({ club, yearFrom: from, yearTo: to, sex: $('#f-sex').value, membership: $('#f-member').value }, FINDER_LIMIT);
     finderShown = res.players;
     const inForm = keysInForm();
     $('#f-status').textContent = res.total
@@ -242,7 +242,7 @@
         const already = inForm.has(playerKey(p));
         return `<label class="finder-row${already ? ' in-form' : ''}">
           <input type="checkbox" data-fid="${esc(p.id)}" ${already || finderSel.has(p.id) ? 'checked' : ''} ${already ? 'disabled' : ''}>
-          <span><strong>${esc(p.name)}</strong>${p.title ? ` <span class="badge">${esc(p.title)}</span>` : ''}
+          <span><span><strong>${esc(p.name)}</strong>${p.title ? ` <span class="badge">${esc(p.title)}</span>` : ''}${window.Players.isActive(p) ? '' : ' <span class="badge muted-badge">neaktivní</span>'}</span>
             <span class="opt-meta">${esc([p.year, p.club, p.rn ? 'ELO ČR ' + p.rn : '', p.rf ? 'FIDE ' + p.rf : ''].filter(Boolean).join(' · '))}${already ? ' · v přihlášce' : ''}</span></span>
         </label>`;
       }).join('')}` : '';
