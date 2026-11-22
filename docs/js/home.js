@@ -168,7 +168,7 @@
       const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
       if (i === 35 && d.getMonth() !== m) break; // šestý týden jen když je potřeba
       const list = byDay[iso(d)] || [];
-      cells.push(`<div class="cal-cell${d.getMonth() !== m ? ' other' : ''}${iso(d) === now ? ' today' : ''}${list.length ? ' has' : ''}">
+      cells.push(`<div class="cal-cell${d.getMonth() !== m ? ' other' : ''}${iso(d) === now ? ' today' : ''}${list.length ? ' has' : ''}${list.length === 1 ? ' single' : ''}">
         <span class="cal-num">${d.getDate()}</span>
         ${list.map((ev) => `<a class="cal-ev${R.isClosed(ev) ? ' closed' : ''}" href="${R.isClosed(ev) ? listUrl(ev) : formUrl(ev)}" title="${esc(ev.name)}">${esc(ev.name)}</a>`).join('')}
       </div>`);

@@ -564,3 +564,9 @@ section > .step-title { margin-bottom: 4px; }
 }
 .ev-day { white-space: nowrap; }
 @media (max-width: 640px) { .ev-day.long { font-size: 0.88rem; } }
+/* jediná akce v den vyplní celé políčko */
+.cal-cell.single .cal-ev { flex: 1; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4; line-clamp: 4; text-overflow: clip; padding: 3px 5px; font-weight: 600; line-height: 1.3; }
+@media (max-width: 640px) {
+  .cal-cell.single .cal-ev { height: auto; min-height: 14px; -webkit-line-clamp: unset; }
+}
