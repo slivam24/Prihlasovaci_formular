@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="container">
+  <main class="container home">
     <header class="hero">
       <h1 id="site-name">Přihlášky na šachové turnaje</h1>
       <p class="muted">Vyberte akci, na kterou se chcete přihlásit.</p>
@@ -17,6 +17,14 @@
       <span>Načítám turnaje…<br><span class="small muted">První načtení může trvat několik sekund.</span></span>
     </div>
     <p id="status" class="muted" hidden></p>
+    <div id="toolbar" class="home-toolbar" hidden>
+      <div class="seg" role="group" aria-label="Zobrazení">
+        <button type="button" data-view="list" aria-pressed="true">Seznam</button>
+        <button type="button" data-view="calendar" aria-pressed="false">Kalendář</button>
+      </div>
+      <label id="search-wrap" class="home-search" hidden><span class="hp">Hledat akci</span>
+        <input id="search" type="search" placeholder="Hledat akci, místo nebo turnaj…" autocomplete="off"></label>
+    </div>
     <div id="events"></div>
     <footer class="footer links" id="footer" hidden><a href="ochrana-udaju.html" class="muted">Zpracování osobních údajů</a>
       <a href="admin.html" class="muted">Přihlášení pro pořadatele</a></footer>

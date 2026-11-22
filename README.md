@@ -5,7 +5,8 @@ Webová aplikace pro přihlašování na šachové akce. Pořadatel si v adminis
 s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro Swiss-Manager**.
 
 **Pro hráče**
-- přehled akcí s otevřeným přihlašováním (`index.html`),
+- přehled akcí s otevřeným přihlašováním (`index.html`): kompaktní seznam po měsících nebo **kalendář**,
+  hledání (od 5 akcí), uložení akce do vlastního kalendáře (.ics),
 - přihláška na akci (`prihlaska.html?akce=<adresa>`):
   - našeptávač z LOK doplní ročník, klub, ELO ČR, FIDE, ID, FIDE ID a titul,
   - hráči mimo LOK se zadávají ručně,

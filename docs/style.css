@@ -500,3 +500,67 @@ section > .step-title { margin-bottom: 4px; }
 .pr-inner { margin-top: 6px; font-size: 12px; }
 .pr-group-card .pr-inner th { background: #f3f3f3; }
 .pr-subtotals { margin: 4px 0 0; color: #333; }
+
+/* úvodní stránka: kompaktní seznam a kalendář */
+.container.home { max-width: 900px; }
+.home-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; }
+.home-search { flex: 1; min-width: 220px; }
+.home-search input { width: 100%; }
+.seg { display: inline-flex; border: 1px solid var(--accent); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 600; border: 0; background: var(--card); color: var(--accent); padding: 7px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--accent); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.month-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 18px 0 6px; }
+.month-title:first-child { margin-top: 4px; }
+.ev-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 4px 16px; align-items: center;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 8px; box-shadow: var(--shadow); }
+.ev-row:hover { border-color: var(--accent); }
+.ev-date { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1;
+  border-radius: 8px; background: var(--accent-soft); color: var(--accent); padding: 6px 2px; min-height: 58px; }
+.ev-month { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.ev-day { font-size: 1.35rem; font-weight: 800; }
+.ev-day.long { font-size: 1.05rem; }
+.ev-wd { font-size: 0.72rem; color: var(--muted); }
+.ev-main { min-width: 0; }
+.ev-main h3 { margin: 0; font-size: 1.05rem; line-height: 1.3; }
+.ev-main h3 a { color: var(--text); text-decoration: none; }
+.ev-main h3 a:hover { color: var(--accent); text-decoration: underline; }
+.ev-meta { margin: 2px 0 0; font-size: 0.9rem; color: var(--muted); }
+.ev-soon { color: var(--warn); font-weight: 700; }
+.ev-tours { font-size: 0.9rem; margin-top: 2px; }
+.ev-tours summary { cursor: pointer; color: var(--muted); }
+.ev-tours summary:hover { color: var(--accent); }
+.ev-tours ul { margin: 4px 0 2px; padding-left: 18px; }
+.ev-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.ev-links { display: flex; gap: 12px; font-size: 0.875rem; flex-wrap: wrap; justify-content: flex-end; }
+.ev-links button.link { padding: 0; font-size: inherit; }
+.ev-row.closed .ev-date { background: var(--bg); color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+.closed-list { margin-top: 18px; }
+.closed-list > summary { cursor: pointer; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+@media (max-width: 640px) {
+  .ev-row { grid-template-columns: 52px minmax(0, 1fr); padding: 10px; gap: 4px 12px; }
+  .ev-date { min-height: 50px; }
+  .ev-actions { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+}
+
+.cal { padding: 14px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cal-head h2 { margin: 0; font-size: 1.15rem; text-transform: capitalize; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.cal-wd { text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; padding: 2px 0; }
+.cal-cell { min-height: 74px; border: 1px solid var(--border); border-radius: 6px; padding: 3px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cal-cell.other { background: var(--bg); }
+.cal-cell.other .cal-num { color: var(--muted); }
+.cal-cell.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cal-num { font-size: 0.8rem; font-weight: 700; }
+.cal-ev { display: block; font-size: 0.75rem; line-height: 1.25; padding: 1px 4px; border-radius: 4px; background: var(--accent); color: var(--accent-text);
+  text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-ev:hover { background: var(--accent-hover); color: var(--accent-text); }
+.cal-ev.closed { background: var(--border); color: var(--text); }
+.cal + .ev-row, .cal ~ p { margin-top: 12px; }
+@media (max-width: 640px) {
+  .cal-cell { min-height: 44px; }
+  .cal-ev { font-size: 0; height: 6px; padding: 0; border-radius: 3px; }
+}
+.ev-day { white-space: nowrap; }
+@media (max-width: 640px) { .ev-day.long { font-size: 0.88rem; } }
