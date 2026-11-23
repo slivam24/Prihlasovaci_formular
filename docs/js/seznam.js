@@ -37,7 +37,7 @@
       : ev.tournaments;
     if (ev.kind === 'club' && !$('#calendar-link')) {
       const cal = $('#form-link');
-      cal.insertAdjacentHTML('afterend', ` <a id="calendar-link" href="kalendar.html?akce=${encodeURIComponent(ev.slug)}">Termínový kalendář klubu</a>`);
+      cal.insertAdjacentHTML('afterend', ` <a id="calendar-link" href="klub.html">Klubová sekce</a>`);
     }
     tours.forEach((t) => {
       const anchor = 't-' + t.id;

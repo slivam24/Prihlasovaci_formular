@@ -596,3 +596,40 @@ span.cal-ev { cursor: default; }
 .t-cat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; font-size: 0.9rem; font-weight: 600; }
 .t-cat select { padding: 4px 8px; font-weight: 400; }
 .t-cat .t-cat-warn { flex-basis: 100%; font-weight: 400; }
+
+/* barevná paleta akcí (podle značení termínového kalendáře ÚKŠS) */
+:root {
+  --g-ukss: #1e7b45; --g-sscr: #b3261e; --g-mladez: #a85400; --g-sscrm: #1f5fbf; --g-ostatni: #7b3fb0;
+  --g-on: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --g-ukss: #6fd39b; --g-sscr: #ff8a80; --g-mladez: #ffb36b; --g-sscrm: #8fb6f0; --g-ostatni: #cfa6f5; --g-on: #10131a; }
+}
+.grp-ukss { --g: var(--g-ukss); }
+.grp-sscr { --g: var(--g-sscr); }
+.grp-mladez { --g: var(--g-mladez); }
+.grp-sscrm { --g: var(--g-sscrm); }
+.grp-ostatni { --g: var(--g-ostatni); }
+.ev-row[class*="grp-"] { border-left: 5px solid var(--g); }
+.ev-row[class*="grp-"] .ev-date { background: color-mix(in srgb, var(--g) 14%, var(--card)); color: var(--g); box-shadow: none; }
+.ev-row[class*="grp-"] .ev-date .ev-wd { color: var(--muted); }
+.ev-row.state-none[class*="grp-"], .ev-row.state-league[class*="grp-"] { border-left-style: dashed; }
+.ev-row.state-past { background: var(--bg); }
+.grp-label { color: var(--g); font-weight: 700; }
+.ev-note { color: var(--text); }
+.cal-ev[class*="grp-"] { background: var(--g); color: var(--g-on); }
+.cal-ev[class*="grp-"]:hover { background: var(--g); color: var(--g-on); filter: brightness(1.1); }
+.cal-ev[class*="grp-"].cal-none, .cal-ev[class*="grp-"].cal-league, .cal-ev[class*="grp-"].cal-past, .cal-ev[class*="grp-"].cal-closed, .cal-ev[class*="grp-"].closed {
+  background: color-mix(in srgb, var(--g) 16%, var(--card)); color: var(--text); box-shadow: inset 3px 0 0 var(--g); filter: none;
+}
+.legend { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 0 0 10px; }
+.legend-chip { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 0.85rem; color: var(--text); background: var(--card);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.legend-chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--g); }
+.legend-chip:hover { border-color: var(--g); }
+.legend-chip[aria-pressed="true"] { border-color: var(--g); background: color-mix(in srgb, var(--g) 16%, var(--card)); font-weight: 700; }
+.group-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--g); margin-right: 4px; vertical-align: 0; }
+.seg.tabs { margin: 0 0 12px; }
+.signup-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 16px; }
+.signup-bar label { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
+.cal-admin tr[class*="grp-"] td:first-child { white-space: nowrap; }

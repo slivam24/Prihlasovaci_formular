@@ -13,7 +13,11 @@
   const WEEKDAYS = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
   const SEARCH_FROM = 5; // vyhledávání se ukáže od tohoto počtu akcí
 
-  const state = { events: [], view: 'list', q: '', month: null };
+  // klub.html (data-kind="club"): přehled klubové sekce – stavy přihlašování, filtry, i dlouhodobé soutěže
+  const CLUB = document.body.dataset.kind === 'club';
+  const state = { events: [], view: 'list', q: '', month: null, filter: 'all', past: false, group: '' };
+  const clubState = (ev) => R.eventState(ev);
+  const isOpen = (ev) => (CLUB ? clubState(ev).key === 'open' : !R.isClosed(ev));
 
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -103,12 +107,45 @@
       <span class="ev-day${String(day).length > 3 ? ' long' : ''}">${day}</span><span class="ev-wd">${wd}</span></div>`;
   }
 
+  function stateBadge(ev) {
+    const st = clubState(ev);
+    const cls = { open: 'status-otevreno', closed: 'status-koncept', none: '', league: 'status-league', past: '' }[st.key];
+    return `<span class="status ${cls}">${esc(st.text)}</span>`;
+  }
+
   function row(ev) {
-    const closed = R.isClosed(ev);
-    const dl = deadlineInfo(ev);
+    const closed = !isOpen(ev);
+    const dl = CLUB ? null : deadlineInfo(ev);
+    const grp = ev.group ? ` grp-${ev.group}` : '';
+    if (CLUB) {
+      const st = clubState(ev).key;
+      const t = ev.tournaments[0] || {};
+      const note = ev.tournaments.map((x) => x.note).filter(Boolean).join(' · ');
+      const rule = ev.tournaments.length === 1 ? R.ruleText(t) : '';
+      return `<article class="ev-row cal-item state-${st}${grp}">
+        ${dateBadge(ev)}
+        <div class="ev-main">
+          <h3>${st === 'open' ? `<a href="${formUrl(ev)}">${esc(ev.name)}</a>` : esc(ev.name)}</h3>
+          <p class="ev-meta">${esc([R.formatRange(ev.dateFrom, ev.dateTo), ev.place].filter(Boolean).join(' · '))}
+            ${ev.group ? ` · <span class="grp-label">${esc(R.GROUP_LABELS[ev.group])}</span>` : ''}</p>
+          ${note ? `<p class="ev-meta ev-note">${esc(note)}</p>` : ''}
+          ${R.categoriesOf(t).length ? `<p class="ev-meta">kategorie: ročník ${esc(R.categoriesOf(t).join(' / '))} a mladší</p>`
+            : rule ? `<p class="ev-meta">${esc(rule)}</p>` : ''}
+        </div>
+        <div class="ev-actions">
+          ${st === 'open' ? `<a class="button primary small-btn" href="${formUrl(ev)}">Přihlásit se</a>` : ''}
+          ${stateBadge(ev)}
+          <span class="ev-links">
+            ${st === 'open' || st === 'closed' ? `<a href="${listUrl(ev)}">Přihlášení</a>` : ''}
+            ${ev.infoUrl || t.infoUrl ? `<a href="${esc(ev.infoUrl || t.infoUrl)}" target="_blank" rel="noopener">Propozice</a>` : ''}
+            ${st !== 'past' && ev.dateFrom ? `<button type="button" class="link" data-ics="${esc(ev.slug)}" title="Stáhnout událost do kalendáře">Do kalendáře</button>` : ''}
+          </span>
+        </div>
+      </article>`;
+    }
     const n = ev.tournaments.length;
     const tours = ev.tournaments.map((t) => `<li>${esc(R.tournamentLabel(t))}</li>`).join('');
-    return `<article class="ev-row${closed ? ' closed' : ''}">
+    return `<article class="ev-row${closed ? ' closed' : ''}${grp}">
       ${dateBadge(ev)}
       <div class="ev-main">
         <h3><a href="${closed ? listUrl(ev) : formUrl(ev)}">${esc(ev.name)}</a></h3>
@@ -130,8 +167,8 @@
   }
 
   function renderList(events) {
-    const open = events.filter((e) => !R.isClosed(e));
-    const closed = events.filter((e) => R.isClosed(e));
+    const open = CLUB ? events : events.filter((e) => !R.isClosed(e));
+    const closed = CLUB ? [] : events.filter((e) => R.isClosed(e));
     const byMonth = (list) => {
       let last = null;
       return list.map((ev) => {
@@ -142,14 +179,15 @@
         return head + row(ev);
       }).join('');
     };
-    return (open.length ? byMonth(open) : '<p class="muted">Žádná akce s otevřeným přihlašováním tomu neodpovídá.</p>') +
+    return (open.length ? byMonth(open) : `<p class="muted">${CLUB ? 'Filtru neodpovídá žádná akce.' : 'Žádná akce s otevřeným přihlašováním tomu neodpovídá.'}</p>`) +
       (closed.length ? `<details class="closed-list"${open.length ? '' : ' open'}><summary>Uzavřené přihlašování (${closed.length})</summary>${byMonth(closed)}</details>` : '');
   }
 
   // ---------- kalendář ----------
 
   function renderCalendar(events) {
-    const first = parse((events.find((e) => !R.isClosed(e)) || events[0] || {}).dateFrom) || today();
+    const upcoming = events.find((e) => (parse(e.dateTo) || parse(e.dateFrom) || today()) >= today());
+    const first = parse((upcoming || events[0] || {}).dateFrom) || today();
     if (state.month == null) state.month = monthKey(first);
     const y = Math.floor(state.month / 12);
     const m = state.month % 12;
@@ -170,7 +208,13 @@
       const list = byDay[iso(d)] || [];
       cells.push(`<div class="cal-cell${d.getMonth() !== m ? ' other' : ''}${iso(d) === now ? ' today' : ''}${list.length ? ' has' : ''}${list.length === 1 ? ' single' : ''}">
         <span class="cal-num">${d.getDate()}</span>
-        ${list.map((ev) => `<a class="cal-ev${R.isClosed(ev) ? ' closed' : ''}" href="${R.isClosed(ev) ? listUrl(ev) : formUrl(ev)}" title="${esc(ev.name)}">${esc(ev.name)}</a>`).join('')}
+        ${list.map((ev) => {
+          const open = isOpen(ev);
+          const cls = `cal-ev${ev.group ? ' grp-' + ev.group : ''}${CLUB ? ' cal-' + clubState(ev).key : open ? '' : ' closed'}`;
+          const label = esc(CLUB ? (ev.tournaments[0] && ev.tournaments[0].short) || ev.name : ev.name);
+          if (CLUB && !open) return `<span class="${cls}" title="${esc(ev.name)} – ${esc(clubState(ev).text)}">${label}</span>`;
+          return `<a class="${cls}" href="${open ? formUrl(ev) : listUrl(ev)}" title="${esc(ev.name)}">${label}</a>`;
+        }).join('')}
       </div>`);
     }
     const inMonth = events.filter((ev) => {
@@ -191,12 +235,39 @@
 
   // ---------- vykreslení ----------
 
+  function filtered() {
+    const now = today();
+    return state.events.filter((ev) => {
+      if (!matches(ev, state.q)) return false;
+      if (state.group && ev.group !== state.group) return false;
+      if (!CLUB) return true;
+      const st = clubState(ev).key;
+      if (state.filter === 'open' && st !== 'open') return false;
+      if (state.filter === 'tournaments' && st === 'league') return false;
+      const end = parse(ev.dateTo) || parse(ev.dateFrom);
+      if (!state.past && state.view === 'list' && end && end < now) return false;
+      return true;
+    });
+  }
+
+  function renderLegend() {
+    const groups = Object.keys(R.GROUP_LABELS).filter((g) => state.events.some((ev) => ev.group === g));
+    const box = $('#legend');
+    if (!box) return;
+    box.hidden = groups.length < 2;
+    box.innerHTML = groups.map((g) => `<button type="button" class="legend-chip grp-${g}" data-group="${g}" aria-pressed="${state.group === g}">
+      <span class="dot"></span>${esc(R.GROUP_LABELS[g])}</button>`).join('') +
+      (state.group ? '<button type="button" class="link" data-group="">zrušit filtr barvy</button>' : '');
+  }
+
   function render() {
-    const events = state.events.filter((ev) => matches(ev, state.q));
+    const events = filtered();
+    renderLegend();
+    document.querySelectorAll('[data-filter]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filter === state.filter)));
     $('#loader').hidden = true;
     $('#footer').hidden = false;
     if (!state.events.length) {
-      $('#status').textContent = 'Momentálně není otevřené přihlašování na žádnou akci.';
+      $('#status').textContent = CLUB ? 'Klubová sekce zatím nemá žádné akce.' : 'Momentálně není otevřené přihlašování na žádnou akci.';
       $('#status').hidden = false;
       $('#toolbar').hidden = true;
       $('#events').innerHTML = '';
@@ -205,6 +276,7 @@
     $('#status').hidden = true;
     $('#toolbar').hidden = false;
     $('#search-wrap').hidden = state.events.length < SEARCH_FROM;
+    if ($('#past-wrap')) $('#past-wrap').hidden = state.view === 'calendar';
     document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
     $('#events').innerHTML = state.view === 'calendar' ? renderCalendar(events) : renderList(events);
   }
@@ -222,10 +294,20 @@
   });
   document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
     state.view = b.dataset.view;
-    store.set('homeView', state.view);
+    store.set(CLUB ? 'clubView' : 'homeView', state.view);
     render();
   }));
   $('#search').addEventListener('input', (e) => { state.q = e.target.value; state.month = null; render(); });
+  document.querySelectorAll('[data-filter]').forEach((b) => b.addEventListener('click', () => { state.filter = b.dataset.filter; render(); }));
+  if ($('#show-past')) $('#show-past').addEventListener('change', (e) => { state.past = e.target.checked; render(); });
+  if ($('#legend')) {
+    $('#legend').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-group]');
+      if (!b) return;
+      state.group = state.group === b.dataset.group ? '' : b.dataset.group;
+      render();
+    });
+  }
 
   // listinu hráčů (0,5 MB) stáhneme na pozadí, aby byl formulář po kliknutí hned připravený
   function prefetchPlayers() {
@@ -235,16 +317,17 @@
   }
 
   async function init() {
-    state.view = store.get('homeView') === 'calendar' ? 'calendar' : 'list';
+    state.view = store.get(CLUB ? 'clubView' : 'homeView') === 'calendar' ? 'calendar' : 'list';
     prefetchPlayers();
-    const cached = window.Api.cacheRead('events', 7 * DAY);
+    const cacheKey = CLUB ? 'club-events' : 'events';
+    const cached = window.Api.cacheRead(cacheKey, 7 * DAY);
     if (cached) setEvents(cached);
     try {
       const cfg = await window.Api.loadConfig();
-      if (cfg.siteName) { $('#site-name').textContent = cfg.siteName; document.title = cfg.siteName; }
-      const data = await window.Api.get('events');
+      if (cfg.siteName && !CLUB) { $('#site-name').textContent = cfg.siteName; document.title = cfg.siteName; }
+      const data = await window.Api.get('events', CLUB ? { kind: 'club' } : undefined);
       const events = data.events || [];
-      window.Api.cacheWrite('events', events);
+      window.Api.cacheWrite(cacheKey, events);
       events.forEach((ev) => window.Api.cacheWrite('event:' + ev.slug, ev));
       setEvents(events);
     } catch (e) {

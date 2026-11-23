@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Klubová sekce</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-kind="club">
+  <main class="container home">
+    <header class="hero">
+      <p class="back small"><a href="./">← Všechny akce</a></p>
+      <h1 id="site-name">Klubová sekce</h1>
+      <p class="muted">Termínový kalendář klubu. Na turnaje, kam klub pořádá výpravu, se přihlaste tlačítkem „Přihlásit se“ –
+        hromadnou přihlášku pak za klub pošle trenér.</p>
+    </header>
+    <div id="loader" class="loader-card card" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Načítám kalendář…<br><span class="small muted">První načtení může trvat několik sekund.</span></span>
+    </div>
+    <p id="status" class="muted" hidden></p>
+    <div id="toolbar" class="home-toolbar" hidden>
+      <div class="seg" role="group" aria-label="Zobrazení">
+        <button type="button" data-view="list" aria-pressed="true">Seznam</button>
+        <button type="button" data-view="calendar" aria-pressed="false">Kalendář</button>
+      </div>
+      <div class="seg" role="group" aria-label="Filtr">
+        <button type="button" data-filter="all" aria-pressed="true">Vše</button>
+        <button type="button" data-filter="open" aria-pressed="false">Přihlašování otevřeno</button>
+        <button type="button" data-filter="tournaments" aria-pressed="false">Bez dlouhodobých</button>
+      </div>
+      <label class="check" id="past-wrap"><input type="checkbox" id="show-past"> i proběhlé</label>
+      <label id="search-wrap" class="home-search" hidden><span class="hp">Hledat</span>
+        <input id="search" type="search" placeholder="Hledat turnaj nebo místo…" autocomplete="off"></label>
+    </div>
+    <div id="legend" class="legend" hidden></div>
+    <div id="events"></div>
+    <footer class="footer links" id="footer" hidden><a href="ochrana-udaju.html" class="muted">Zpracování osobních údajů</a>
+      <a href="./" class="muted">Všechny akce</a>
+      <a href="admin.html" class="muted">Přihlášení pro pořadatele</a></footer>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/picker.js"></script>
+  <script src="js/home.js"></script>
+</body>
+</html>

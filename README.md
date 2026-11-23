@@ -53,10 +53,14 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
   a propozice; turnaj se po uzávěrce zavře, proběhlé se nenabízejí. U turnaje je export **pro pořadatele** (Excel
   a text do e-mailu) i pro Swiss-Manager. Plný přístup mají správci uvedení v poli „Správci klubové sekce“
   (musí být v seznamu správců jako pořadatel).
-- **klubový termínový kalendář** (`kalendar.html?akce=…`): všechny soutěže sezóny včetně dlouhodobých, seznam po měsících
-  nebo mřížka, filtry. U každého turnaje stav přihlašování: *otevřené* (tlačítko Přihlásit se), *výpravu nepořádáme*,
-  *dlouhodobá soutěž*. Správce ho mění v detailu akce (tabulka Termínový kalendář klubu) – při otevření zadá klubovou
-  uzávěrku (výchozí 2 dny před turnajem); tlačítkem Upravit doplní poznámku, propozice a kategorie. Data ÚKŠS 2026/2027 k importu: `podklady/klubovy_kalendar_2026_2027.json` (Importovat z propozic → načíst soubor).
+- **klubová sekce** (`klub.html`, odkaz v patičce úvodní stránky): přehled jen pro klub ve stejném vzhledu jako úvodní
+  stránka – každá soutěž termínového kalendáře je samostatná akce (druh „klubová sekce“), včetně dlouhodobých soutěží.
+  U akce stav: *přihlašování otevřeno* (tlačítko Přihlásit se), *výpravu nepořádáme*, *dlouhodobá soutěž*; filtry, mřížka.
+  Správce přepíná přihlašování v administraci (záložka **Klubová sekce**) – při otevření zadá klubovou uzávěrku
+  (výchozí 2 dny před), tlačítkem Upravit doplní poznámku, propozice a kategorie.
+  Data ÚKŠS 2026/2027: `podklady/klubovy_kalendar_2026_2027.json` (založí se samy, viz `apps-script/KlubovyKalendar.gs`).
+- **barvy akcí** podle značení termínového kalendáře (krajské, republikové, mládež, mládež ŠSČR, ostatní) – v přehledech
+  i kalendáři, s legendou, která zároveň filtruje; nastavuje se v editoru („Barva v přehledu“).
 
 ```
 elo.miramal.com (LOK + rapid LOK) ──(GitHub Action, denně)──► data/players.json ──► našeptávač

@@ -20,7 +20,7 @@ const SHEETS = {
   events: {
     name: 'Akce',
     cols: ['id', 'slug', 'name', 'place', 'dateFrom', 'dateTo', 'deadline', 'status', 'infoUrl', 'intro',
-      'contactEmail', 'admins', 'extras', 'issuer', 'createdBy', 'createdAt', 'updatedAt', 'kind'],
+      'contactEmail', 'admins', 'extras', 'issuer', 'createdBy', 'createdAt', 'updatedAt', 'kind', 'group'],
   },
   tournaments: {
     name: 'Turnaje',
@@ -70,6 +70,8 @@ const EVENT_KINDS = ['event', 'club'];
 // Přihlašování na turnaj (hlavně v klubovém kalendáři): open = lze se přihlásit,
 // none = klub výpravu nepořádá, league = dlouhodobá soutěž (jen v kalendáři).
 const SIGNUP_TYPES = ['open', 'none', 'league'];
+// Barva akce v přehledu (podle značení termínového kalendáře): krajské, republikové, mládež, mládež ŠSČR, ostatní.
+const EVENT_GROUPS = ['ukss', 'sscr', 'mladez', 'sscrm', 'ostatni'];
 const MAX_GROUP_PLAYERS = 60;
 const MAX_GROUP_TEAMS = 20;
 const YES = 'ANO';
@@ -83,8 +85,13 @@ function doGet(e) {
   return respond_(() => {
     maybeSeedClubCalendar_();
     maybeMigrateClubCalendar_();
+    maybeSplitClubCalendar_();
     // klubové sekce nejsou v přehledu akcí – jsou dostupné jen přes odkaz
-    if (p.action === 'events') return { events: cachedPublicEvents_().filter((e) => e.kind !== 'club') };
+    // klubová sekce má vlastní přehled (klub.html, ?kind=club), v hlavním přehledu není
+    if (p.action === 'events') {
+      const club = p.kind === 'club';
+      return { events: cachedPublicEvents_().filter((e) => (e.kind === 'club') === club) };
+    }
     if (p.action === 'event') {
       const hit = cachedPublicEvents_().find((e) => e.slug === String(p.slug || ''));
       if (!hit) throw userError_('Akce nebyla nalezena.', 'not_found');
@@ -245,6 +252,7 @@ function buildEvent_(row, tourRows) {
     deadline: String(row.deadline || ''),
     status: EVENT_STATUSES.indexOf(row.status) >= 0 ? row.status : 'koncept',
     kind: EVENT_KINDS.indexOf(row.kind) >= 0 ? row.kind : 'event',
+    group: EVENT_GROUPS.indexOf(row.group) >= 0 ? row.group : '',
     infoUrl: String(row.infoUrl || ''),
     intro: String(row.intro || ''),
     contactEmail: String(row.contactEmail || ''),
@@ -297,7 +305,7 @@ function loadEventById_(id) {
 /** Veřejná podoba akce – bez správců a interních údajů. */
 function publicEvent_(ev) {
   const out = {};
-  ['id', 'slug', 'name', 'place', 'dateFrom', 'dateTo', 'deadline', 'status', 'kind', 'infoUrl', 'intro', 'extras']
+  ['id', 'slug', 'name', 'place', 'dateFrom', 'dateTo', 'deadline', 'status', 'kind', 'group', 'infoUrl', 'intro', 'extras']
     .forEach((k) => { out[k] = ev[k]; });
   out.tournaments = ev.tournaments.map(stripRow_);
   // správce osobních údajů (pořadatel) – pro stránku o zpracování osobních údajů
@@ -370,6 +378,7 @@ function sanitizeEvent_(input, existingEvents, currentId) {
   const deadline = cleanDate_(input.deadline);
   const status = EVENT_STATUSES.indexOf(input.status) >= 0 ? input.status : 'koncept';
   const kind = EVENT_KINDS.indexOf(input.kind) >= 0 ? input.kind : 'event';
+  const group = EVENT_GROUPS.indexOf(input.group) >= 0 ? input.group : '';
 
   let slug = slugify_(input.slug || name);
   if (!slug) throw userError_('Adresa akce může obsahovat jen písmena bez diakritiky, číslice a pomlčky.');
@@ -388,8 +397,9 @@ function sanitizeEvent_(input, existingEvents, currentId) {
     const minB = toInt_(t.minBirthYear) || null;
     const maxB = toInt_(t.maxBirthYear) || null;
     if (minB && maxB && minB > maxB) throw userError_(`Turnaj „${tName}“: ročníky se vylučují.`);
-    const tDateFrom = cleanDate_(t.dateFrom);
-    const tDateTo = tDateFrom ? cleanDate_(t.dateTo) : '';
+    let tDateFrom = cleanDate_(t.dateFrom);
+    let tDateTo = tDateFrom ? cleanDate_(t.dateTo) : '';
+    if (!tDateFrom && input.kind === 'club') { tDateFrom = cleanDate_(input.dateFrom); tDateTo = cleanDate_(input.dateTo); }
     if (tDateTo && tDateTo < tDateFrom) throw userError_(`Turnaj „${tName}“: konec je před začátkem.`);
     return {
       id: t.id ? String(t.id) : '',
@@ -409,7 +419,7 @@ function sanitizeEvent_(input, existingEvents, currentId) {
       dateFrom: tDateFrom,
       dateTo: tDateTo,
       place: clean_(t.place, 150),
-      deadline: cleanDate_(t.deadline),
+      deadline: cleanDate_(t.deadline) || (input.kind === 'club' ? cleanDate_(input.deadline) : ''),
       infoUrl: /^https?:\/\//.test(String(t.infoUrl || '')) ? clean_(t.infoUrl, 300) : '',
       signup: SIGNUP_TYPES.indexOf(t.signup) >= 0 ? t.signup : 'open',
       note: clean_(t.note, 300),
@@ -464,7 +474,7 @@ function sanitizeEvent_(input, existingEvents, currentId) {
 
   return {
     event: {
-      name, slug, dateFrom, dateTo, deadline, status, kind,
+      name, slug, dateFrom, dateTo, deadline, status, kind, group,
       place: clean_(input.place, 150),
       infoUrl: /^https?:\/\//.test(String(input.infoUrl || '')) ? clean_(input.infoUrl, 300) : '',
       intro: clean_(input.intro, 2000),
@@ -961,8 +971,9 @@ function canSelfEdit_(ev, now) {
 function findApplication_(token) {
   const t = String(token || '').trim();
   if (t.length < 20) throw userError_('Neplatný odkaz na přihlášku.', 'not_found');
-  const rows = table_('registrations').rows.filter((r) => r.editToken === t);
-  if (!rows.length) throw userError_('Přihláška nebyla nalezena – odkaz je neplatný, nebo byla přihláška smazána.', 'not_found');
+  const all = table_('registrations').rows.filter((r) => r.editToken === t);
+  if (!all.length) throw userError_('Přihláška nebyla nalezena – odkaz je neplatný, nebo byla přihláška smazána.', 'not_found');
+  const rows = all.filter((r) => r.eventId === all[0].eventId);
   return { ev: loadEventById_(rows[0].eventId), rows };
 }
 
@@ -1498,7 +1509,7 @@ const ADMIN_ACTIONS = {
       place: src.place, dateFrom: shiftDate(src.dateFrom), dateTo: shiftDate(src.dateTo),
       deadline: shiftDate(src.deadline), status: 'koncept', infoUrl: src.infoUrl, intro: src.intro,
       contactEmail: src.contactEmail, admins: src.admins, extras: src.extras, issuer: src.issuer,
-      kind: src.kind,
+      kind: src.kind, group: src.group,
       tournaments: src.tournaments.map((t) => Object.assign(stripRow_(t), {
         id: '', minBirthYear: shiftYear(t.minBirthYear), maxBirthYear: shiftYear(t.maxBirthYear),
         dateFrom: shiftDate(t.dateFrom), dateTo: shiftDate(t.dateTo), deadline: shiftDate(t.deadline),

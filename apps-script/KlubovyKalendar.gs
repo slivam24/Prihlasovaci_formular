@@ -1,58 +1,95 @@
 /**
- * Jednorázové založení klubového termínového kalendáře 2026/2027 (data z podklady/klubovy_kalendar_2026_2027.json).
- * Spustí se samo při prvním požadavku na backend po nasazení (nebo menu Turnaje → Založit klubový kalendář 2026/2027),
- * jen pokud akce s touto adresou ještě neexistuje. Pak se poznamená do vlastnosti skriptu a už se nespouští.
+ * Klubová sekce – termínový kalendář ÚKŠS 2026/2027 (data z podklady/klubovy_kalendar_2026_2027.json).
+ * Každá soutěž je samostatná akce druhu „klubová sekce“ (přehled klub.html).
+ *
+ * Jednorázové kroky, spouští se samy při požadavku na backend a poznamenají se do vlastností skriptu:
+ *  - SEED_KALENDAR_2026: založení akcí (nová instalace), menu Turnaje → Založit klubový kalendář 2026/2027
+ *  - KALENDAR_2026_V2: úprava původní jedné akce (kategorie, uzávěrky 2 dny předem)
+ *  - KALENDAR_2026_V3: rozdělení původní jedné akce se všemi soutěžemi na samostatné akce (i s přihláškami)
  */
 
 const SEED_KALENDAR_PROP_ = 'SEED_KALENDAR_2026';
+const MIGRATE_KALENDAR_PROP_ = 'KALENDAR_2026_V2';
+const SPLIT_KALENDAR_PROP_ = 'KALENDAR_2026_V3';
 
-function maybeSeedClubCalendar_() {
+function onceProp_(prop, fn) {
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty(SEED_KALENDAR_PROP_)) return null;
+  if (props.getProperty(prop)) return null;
   try {
-    const res = seedClubCalendar_();
-    props.setProperty(SEED_KALENDAR_PROP_, new Date().toISOString());
+    const res = fn();
+    props.setProperty(prop, new Date().toISOString());
     return res;
   } catch (err) {
-    console.error('Založení klubového kalendáře se nepovedlo', err);
+    console.error('Jednorázový krok ' + prop + ' se nepovedl', err);
     return null;
   }
 }
 
-/** Založí kalendář, pokud ještě neexistuje. Vrací uloženou akci, nebo null. */
+function maybeSeedClubCalendar_() { return onceProp_(SEED_KALENDAR_PROP_, seedClubCalendar_); }
+function maybeMigrateClubCalendar_() { return onceProp_(MIGRATE_KALENDAR_PROP_, migrateClubCalendar_); }
+function maybeSplitClubCalendar_() { return onceProp_(SPLIT_KALENDAR_PROP_, splitClubCalendar_); }
+
+function clubOwner_() {
+  return table_('users').rows.find((u) => u.role === 'superadmin' && u.active !== 'NE');
+}
+
+/** Adresa akce z data a názvu, jedinečná vůči existujícím. */
+function clubSlug_(t, taken) {
+  const base = (String(t.dateFrom || '').slice(0, 10) + '-' + slugify_(t.name)).slice(0, 60).replace(/-+$/, '');
+  let slug = base;
+  let i = 2;
+  while (taken[slug]) slug = `${base}-${i++}`;
+  taken[slug] = true;
+  return slug;
+}
+
+/** Řádek akce pro jednu soutěž klubového kalendáře. */
+function clubEventRow_(t, base, taken, now) {
+  return {
+    id: makeId_(new Date(), 8), slug: clubSlug_(t, taken), name: t.name, place: t.place || '',
+    dateFrom: t.dateFrom, dateTo: t.dateTo || '', deadline: t.deadline || '', status: 'otevreno',
+    infoUrl: t.infoUrl || '', intro: '', contactEmail: base.contactEmail || '', admins: base.admins || '',
+    extras: base.extras || '[]', issuer: base.issuer || '{}', createdBy: base.createdBy || '', createdAt: now, updatedAt: now,
+    kind: 'club', group: EVENT_GROUPS.indexOf(t.group) >= 0 ? t.group : 'ostatni',
+  };
+}
+
+/** Nová instalace: každá soutěž z dat jako samostatná akce (hromadný zápis). */
 function seedClubCalendar_() {
-  if (loadEvents_().some((e) => e.slug === CLUB_CALENDAR_2026_.slug)) return null;
-  const owner = table_('users').rows.find((u) => u.role === 'superadmin' && u.active !== 'NE');
-  if (!owner) return null;
-  const event = JSON.parse(JSON.stringify(CLUB_CALENDAR_2026_));
-  event.status = 'otevreno';
-  return ADMIN_ACTIONS.saveEvent({ event }, { email: String(owner.email).toLowerCase(), role: 'superadmin' }).event;
+  const owner = clubOwner_();
+  if (!owner) return 0;
+  const events = loadEvents_();
+  if (events.some((e) => e.slug === CLUB_CALENDAR_2026_.slug || e.kind === 'club')) return 0;
+  const taken = {};
+  events.forEach((e) => { taken[e.slug] = true; });
+  const now = new Date().toISOString();
+  const base = { extras: JSON.stringify(CLUB_CALENDAR_2026_.extras || []), issuer: '{}', createdBy: String(owner.email).toLowerCase() };
+  const evRows = [];
+  const tourRows = [];
+  CLUB_CALENDAR_2026_.tournaments.forEach((t) => {
+    const er = clubEventRow_(t, base, taken, now);
+    evRows.push(er);
+    tourRows.push(Object.assign({}, clubTournament_(t), { id: makeId_(new Date(), 8), eventId: er.id, order: 1 }));
+  });
+  insert_('events', evRows);
+  insert_('tournaments', tourRows);
+  clearPublicCache_();
+  return evRows.length;
 }
 
-/**
- * Jednorázová úprava už založeného kalendáře (verze 2): kategorie u GP a KP mládeže a klubové uzávěrky
- * 2 dny před turnajem. Mění jen hodnoty, které od založení nikdo neupravil.
- */
-const MIGRATE_KALENDAR_PROP_ = 'KALENDAR_2026_V2';
-
-function maybeMigrateClubCalendar_() {
-  const props = PropertiesService.getScriptProperties();
-  if (props.getProperty(MIGRATE_KALENDAR_PROP_)) return 0;
-  let n = 0;
-  try {
-    n = migrateClubCalendar_();
-    props.setProperty(MIGRATE_KALENDAR_PROP_, new Date().toISOString());
-  } catch (err) {
-    console.error('Úprava klubového kalendáře se nepovedla', err);
-  }
-  return n;
+function clubTournament_(t) {
+  const out = {};
+  ['name', 'short', 'type', 'rating', 'dateFrom', 'dateTo', 'place', 'deadline', 'infoUrl', 'signup', 'note', 'categories',
+    'minBirthYear', 'maxBirthYear', 'boards', 'reserves'].forEach((k) => { if (t[k] != null) out[k] = t[k]; });
+  out.feeRules = '[]';
+  return out;
 }
 
+/** Verze 2 (původní jedna akce): kategorie u GP a KP mládeže, uzávěrky 2 dny předem – jen neupravené hodnoty. */
 function migrateClubCalendar_() {
   const ev = loadEvents_().find((e) => e.slug === CLUB_CALENDAR_2026_.slug);
   if (!ev) return 0;
-  const src = {};
-  CLUB_CALENDAR_2026_.tournaments.forEach((t) => { src[t.name + '|' + t.dateFrom] = t; });
+  const src = clubSourceIndex_();
   let n = 0;
   table_('tournaments').rows.filter((r) => r.eventId === ev.id).forEach((r) => {
     const from = String(readCell_('dateFrom', r.dateFrom) || '');
@@ -68,11 +105,71 @@ function migrateClubCalendar_() {
   return n;
 }
 
+function clubSourceIndex_() {
+  const src = {};
+  CLUB_CALENDAR_2026_.tournaments.forEach((t) => { src[t.name + '|' + t.dateFrom] = t; });
+  return src;
+}
+
+/**
+ * Verze 3: původní akce se všemi soutěžemi se rozdělí – každá soutěž dostane vlastní akci (klubová sekce),
+ * turnaj se do ní přesune i s přihláškami a záznamy změn. Původní akce se pak smaže.
+ */
+function splitClubCalendar_() {
+  const big = loadEvents_().find((e) => e.slug === CLUB_CALENDAR_2026_.slug);
+  if (!big) return 0;
+  const src = clubSourceIndex_();
+  const taken = {};
+  loadEvents_().forEach((e) => { if (e.id !== big.id) taken[e.slug] = true; });
+  const bigRow = table_('events').rows.find((r) => r.id === big.id);
+  const now = new Date().toISOString();
+  const base = {
+    contactEmail: bigRow.contactEmail, admins: bigRow.admins, extras: bigRow.extras, issuer: bigRow.issuer,
+    createdBy: bigRow.createdBy,
+  };
+  const tours = table_('tournaments').rows.filter((r) => r.eventId === big.id);
+  const evRows = [];
+  const newEventOf = {};
+  tours.forEach((r) => {
+    const t = {
+      name: String(r.name), place: String(r.place || ''), dateFrom: String(readCell_('dateFrom', r.dateFrom) || big.dateFrom),
+      dateTo: String(readCell_('dateTo', r.dateTo) || ''), deadline: String(readCell_('deadline', r.deadline) || ''),
+      infoUrl: String(r.infoUrl || ''),
+    };
+    const s = src[t.name + '|' + t.dateFrom];
+    t.group = s ? s.group : 'ostatni';
+    const er = clubEventRow_(t, base, taken, now);
+    if (big.status !== 'otevreno') er.status = big.status;
+    evRows.push(er);
+    newEventOf[r.id] = er.id;
+  });
+  insert_('events', evRows);
+  tours.forEach((r) => { r.eventId = newEventOf[r.id]; r.order = 1; update_('tournaments', r); });
+  const regEvent = {};
+  table_('registrations').rows.filter((r) => r.eventId === big.id).forEach((r) => {
+    const target = newEventOf[r.tournamentId];
+    if (!target) return;
+    r.eventId = target;
+    regEvent[r.id] = target;
+    regEvent['app:' + r.applicationId] = regEvent['app:' + r.applicationId] || target;
+    update_('registrations', r);
+  });
+  table_('changes').rows.filter((c) => c.eventId === big.id).forEach((c) => {
+    const target = regEvent[c.registrationId] || regEvent['app:' + c.applicationId];
+    if (!target) return;
+    c.eventId = target;
+    update_('changes', c);
+  });
+  remove_('events', table_('events').rows.filter((r) => r.id === big.id));
+  Object.keys(DB_CACHE_).forEach((k) => delete DB_CACHE_[k]);
+  clearPublicCache_();
+  return evRows.length;
+}
+
 function createClubCalendar() {
-  const ev = seedClubCalendar_();
+  const n = seedClubCalendar_();
   PropertiesService.getScriptProperties().setProperty(SEED_KALENDAR_PROP_, new Date().toISOString());
-  SpreadsheetApp.getUi().alert(ev ? `Klubový kalendář založen: ${ev.name} (${ev.tournaments.length} soutěží).`
-    : 'Klubový kalendář už existuje (adresa ' + CLUB_CALENDAR_2026_.slug + ').');
+  SpreadsheetApp.getUi().alert(n ? `Klubový kalendář založen: ${n} akcí.` : 'Klubová sekce už akce má, nic nového se nezaložilo.');
 }
 
 const CLUB_CALENDAR_2026_ = {
@@ -93,7 +190,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-07-11",
    "place": "Doksy – Termit",
    "note": "otevřený pro žáky kraje 2011 a ml.",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "MČR čtyřčlenných družstev",
@@ -105,6 +203,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
    "signup": "none",
+   "group": "sscr",
    "boards": 4,
    "reserves": 1
   },
@@ -117,7 +216,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Otevřené MČR v bleskovém maratónu",
@@ -128,7 +228,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-07-21",
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "MČR ve Fischerových šachách",
@@ -139,7 +240,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Otevřené MČR v rapid šachu mužů",
@@ -150,7 +252,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-07-23",
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Czech Open Pardubice – hlavní turnaje",
@@ -161,7 +264,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-08-01",
    "place": "Pardubice",
    "note": "víc turnajů podle výkonnosti",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Mostecký šachový festival – rapid",
@@ -172,7 +276,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Most",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Mostecký šachový festival – blesk",
@@ -183,7 +288,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Most",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Krajské šachové soustředění",
@@ -194,7 +300,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-08-23",
    "place": "Tornův mlýn",
    "note": "2009 a mladší, KLT + pozvaní",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "MČR seniorů",
@@ -205,7 +312,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-08-23",
    "place": "Olomouc",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Open Chlumec = KP jednotlivců a žen, HD18+20, S50+65",
@@ -216,7 +324,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-08-30",
    "place": "Chlumec",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ukss"
   },
   {
    "name": "Libědická šachovnice",
@@ -227,7 +336,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Libědice",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "MČR v rapid šachu družstev",
@@ -239,6 +349,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Bystřice nad Pernštejnem",
    "note": "hotel Skalský Dvůr",
    "signup": "none",
+   "group": "sscr",
    "boards": 4,
    "reserves": 1
   },
@@ -252,6 +363,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Bystřice nad Pernštejnem",
    "note": "hotel Skalský Dvůr",
    "signup": "none",
+   "group": "sscr",
    "boards": 4,
    "reserves": 1
   },
@@ -264,7 +376,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Podbořany",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "MČR juniorů a juniorek v rapid šachu",
@@ -275,7 +388,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-09-13",
    "place": "Česká Třebová",
    "note": "kategorie 2006, 2008 a 2010 a ml.; v kalendáři 12. i 13. 9.",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "MČR mládeže v rapid šachu",
@@ -286,7 +400,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-09-13",
    "place": "Česká Třebová",
    "note": "kategorie 2012, 2014 a 2016 a ml.; v kalendáři 12. i 13. 9.",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Kvalifikační turnaj mládeže o účast na ZODM",
@@ -297,7 +412,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "konkurz",
    "note": "kat. 2011, 2013, 2015 a ml., D 2011 a ml.; místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "Srbický rapid – 9. ročník",
@@ -308,7 +424,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Srbice",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Krajský tréninkový kemp mládeže",
@@ -319,7 +436,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-09-28",
    "place": "Svor",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "Extraliga mládeže a 1. liga mládeže – 1. termín",
@@ -330,7 +448,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-10-04",
    "place": "dle skupin",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscrm"
   },
   {
    "name": "1. turnaj GP Ústeckého kraje",
@@ -342,6 +461,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Chomutov",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "none",
+   "group": "mladez",
    "categories": "2016, 2012, 2008"
   },
   {
@@ -353,7 +473,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 1. kolo",
@@ -364,7 +485,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "VC Mostu – turnaj čtyřčlenných družstev",
@@ -376,6 +498,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Most",
    "note": "1. turnaj seriálu podzimních VC, 2011 a ml.",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -388,7 +511,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 1. kolo",
@@ -399,7 +523,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Mistrovství Čech mládeže HD12–HD16",
@@ -410,7 +535,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-10-31",
    "place": "Harrachov",
    "note": "kategorie 2011, 2013 a 2015 a ml.; podzimní prázdniny",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Chomutovský král – podzimní (13. ročník)",
@@ -421,7 +547,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Chomutov",
    "note": "termín jen navržený („obvyklý termín“)",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Extraliga – 1. kolo",
@@ -432,7 +559,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "2. liga – 2. kolo",
@@ -443,7 +571,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Extraliga – 2. kolo",
@@ -454,7 +583,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 2. kolo",
@@ -465,7 +595,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Okresní kola přeboru škol",
@@ -476,7 +607,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-11-18",
    "place": "po bývalých okresech",
    "note": "Chomutov 4. 11., okres Litoměřice ve Štětí 18. 11.; jinak dle okresů",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "VC Teplic – turnaj čtyřčlenných družstev",
@@ -488,6 +620,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Teplice",
    "note": "2. turnaj seriálu podzimních VC, 2011 a ml.",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -500,7 +633,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 2. kolo",
@@ -511,7 +645,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Mistrovství Čech HD8–HD10",
@@ -522,7 +657,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-11-15",
    "place": "Most",
    "note": "kategorie 2017 a 2019 a ml.",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Polofinále MČR juniorek a dorostenek",
@@ -533,7 +669,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-11-21",
    "place": "konkurz",
    "note": "kategorie 2007 a 2009 a ml.; místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Polofinále MČR juniorů a dorostenců",
@@ -544,7 +681,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2026-11-21",
    "place": "konkurz",
    "note": "kategorie 2007 a 2009 a ml.; místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "2. liga – 3. kolo",
@@ -555,7 +693,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 3. kolo",
@@ -566,7 +705,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "2. turnaj GP Ústeckého kraje",
@@ -578,6 +718,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Litoměřice",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "none",
+   "group": "mladez",
    "categories": "2016, 2012, 2008"
   },
   {
@@ -589,7 +730,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 3. kolo",
@@ -600,7 +742,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "VC Ústí – turnaj čtyřčlenných družstev",
@@ -612,6 +755,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Chlumec",
    "note": "3. turnaj seriálu podzimních VC, 2011 a ml., závěr",
    "signup": "open",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1,
    "minBirthYear": 2011,
@@ -626,7 +770,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 4. kolo",
@@ -637,7 +782,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Extraliga mládeže a 1. liga mládeže – 2. termín",
@@ -648,7 +794,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "dle skupin",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 4. kolo",
@@ -659,7 +806,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 4. kolo",
@@ -670,7 +818,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Vánoční šachovnice",
@@ -681,7 +830,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Štětí",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Extraliga – 3. kolo",
@@ -692,7 +842,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "2. liga – 5. kolo",
@@ -703,7 +854,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Extraliga – 4. kolo",
@@ -714,7 +866,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 5. kolo",
@@ -725,7 +878,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Memoriál Rudolfa Kotlana – 14. ročník",
@@ -736,7 +890,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Opočno u Loun",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "MČR jednotlivců v bleskovém šachu a ples",
@@ -747,7 +902,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "neurčeno",
    "note": "místo zatím neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Vánoční Teplice – turnaj dětí a mládeže",
@@ -758,7 +914,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Teplice",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Extraliga mládeže a 1. liga mládeže – 3. termín",
@@ -769,7 +926,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "dle skupin",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 5. kolo",
@@ -780,7 +938,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 5. kolo",
@@ -791,7 +950,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajské kolo přeboru škol",
@@ -802,7 +962,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Chlumec (předb.)",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "3. turnaj GP Ústeckého kraje",
@@ -814,6 +975,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Štětí",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2008,
    "deadline": "2027-01-14",
    "categories": "2016, 2012, 2008"
@@ -827,7 +989,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "2. liga – 6. kolo",
@@ -838,7 +1001,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Extraliga – 6. kolo",
@@ -849,7 +1013,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 6. kolo",
@@ -860,7 +1025,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajský přebor družstev starších žáků – 1. termín",
@@ -872,6 +1038,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "dle rozpisu",
    "note": "kategorie 2011 a 2014 a ml.; 2. termín 2. nebo 8. 5.",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -884,7 +1051,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-01-28",
    "place": "Sušice",
    "note": "výběr kraje (kvalifikace 19. 9.)",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 6. kolo",
@@ -895,7 +1063,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 6. kolo",
@@ -906,7 +1075,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajský tréninkový kemp mládeže",
@@ -917,7 +1087,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-01-30",
    "place": "Ústí nad Labem",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "2. liga – 7. kolo",
@@ -928,7 +1099,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 7. kolo",
@@ -939,7 +1111,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "1. liga – 7. kolo",
@@ -950,7 +1123,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 7. kolo",
@@ -961,7 +1135,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "2. liga – 8. kolo",
@@ -972,7 +1147,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 8. kolo",
@@ -983,7 +1159,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Pražský šachový festival",
@@ -994,7 +1171,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-02-26",
    "place": "Praha",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "1. liga – 8. kolo",
@@ -1005,7 +1183,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 8. kolo",
@@ -1016,7 +1195,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "4. turnaj GP Ústeckého kraje",
@@ -1028,6 +1208,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Most",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2008,
    "deadline": "2027-02-25",
    "categories": "2016, 2012, 2008"
@@ -1041,7 +1222,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 9. kolo",
@@ -1052,7 +1234,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajský přebor v bleskovém šachu družstev",
@@ -1064,6 +1247,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "konkurz",
    "note": "místo zatím neurčeno",
    "signup": "none",
+   "group": "ukss",
    "boards": 4,
    "reserves": 1
   },
@@ -1076,7 +1260,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-03-13",
    "place": "neurčeno",
    "note": "místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Mistrovství ČR HD18–HD20",
@@ -1087,7 +1272,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-03-13",
    "place": "neurčeno",
    "note": "místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 9. kolo",
@@ -1098,7 +1284,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 9. kolo",
@@ -1109,7 +1296,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajský přebor družstev mladších žáků",
@@ -1121,6 +1309,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Litoměřice nebo konkurz",
    "note": "",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -1134,6 +1323,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Litoměřice nebo konkurz",
    "note": "",
    "signup": "none",
+   "group": "ukss",
    "boards": 4,
    "reserves": 1
   },
@@ -1146,7 +1336,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "2. liga – 10. kolo",
@@ -1157,7 +1348,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Extraliga – 8. kolo",
@@ -1168,7 +1360,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 10. kolo",
@@ -1179,7 +1372,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Velikonoční Teplice – turnaj dětí a mládeže",
@@ -1190,7 +1384,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Teplice",
    "note": "prázdninový čtvrtek před Velikonocemi",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Velikonoční turnaj",
@@ -1201,7 +1396,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Štětí",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "5. turnaj GP Ústeckého kraje",
@@ -1213,6 +1409,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Teplice",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2008,
    "deadline": "2027-04-01",
    "categories": "2016, 2012, 2008"
@@ -1226,7 +1423,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-04-04",
    "place": "konkurz",
    "note": "místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 10. kolo",
@@ -1237,7 +1435,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 10. kolo",
@@ -1248,7 +1447,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Extraliga – 9.–11. kolo",
@@ -1259,7 +1459,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-04-11",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor v rapid šachu HD8–HD20",
@@ -1271,6 +1472,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Děčín (zájem)",
    "note": "kat. 2007 a ml., postupové jen 2013 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2007,
    "deadline": "2027-04-08"
   },
@@ -1283,7 +1485,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 11. kolo",
@@ -1294,7 +1497,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "6. turnaj GP Ústeckého kraje + celkové vyhodnocení GP",
@@ -1306,6 +1510,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Chomutov",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2008,
    "deadline": "2027-04-15",
    "categories": "2016, 2012, 2008"
@@ -1319,7 +1524,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 11. kolo",
@@ -1330,7 +1536,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Extraliga mládeže a 1. liga mládeže – 4. termín",
@@ -1341,7 +1548,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-04-25",
    "place": "dle skupin",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscrm"
   },
   {
    "name": "Chomutovský král – jarní (13. ročník)",
@@ -1352,7 +1560,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Chomutov",
    "note": "termín jen navržený („obvyklý termín“)",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Krajský přebor družstev starších žáků – 2. termín",
@@ -1364,6 +1573,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "dle rozpisu",
    "note": "kategorie 2011 a 2014 a ml.; termín 2. nebo 8. 5.",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -1376,7 +1586,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Chlumec",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "KP jednotlivců, žen, H+D 16, 18, 20 v blesku",
@@ -1387,7 +1598,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Chlumec",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ukss"
   },
   {
    "name": "36. ročník Memoriálu Antonína Drvoty",
@@ -1398,7 +1610,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Teplice",
    "note": "uchází se o status krajského přeboru",
-   "signup": "none"
+   "signup": "none",
+   "group": "ukss"
   },
   {
    "name": "Krajský přebor mládeže HD10–HD16",
@@ -1410,6 +1623,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "Chomutov",
    "note": "kategorie 2012, 2014, 2016 a 2018 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2012,
    "deadline": "2027-05-20",
    "categories": "2018, 2016, 2014, 2012"
@@ -1424,6 +1638,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "neurčeno",
    "note": "místo neurčeno",
    "signup": "none",
+   "group": "sscrm",
    "boards": 4,
    "reserves": 1
   },
@@ -1436,7 +1651,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-06-06",
    "place": "neurčeno",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "MČR družstev mladších žáků",
@@ -1448,6 +1664,7 @@ const CLUB_CALENDAR_2026_ = {
    "place": "neurčeno",
    "note": "místo neurčeno",
    "signup": "none",
+   "group": "sscrm",
    "boards": 4,
    "reserves": 1
   },
@@ -1460,7 +1677,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "2027-06-27",
    "place": "Teplice (předb.)",
    "note": "mezinárodní FIDE turnaj",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   }
  ],
  "extras": [

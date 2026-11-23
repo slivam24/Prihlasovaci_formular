@@ -713,7 +713,7 @@
     renderHeader();
     if (isClub()) {
       const cal = $('#calendar-link');
-      cal.href = 'kalendar.html?akce=' + encodeURIComponent(ev.slug);
+      cal.href = 'klub.html';
       cal.hidden = false;
     }
     if (R.isClosed(ev)) {
@@ -723,7 +723,7 @@
     }
     if (isClub() && !offered().some((t) => !R.tournamentClosed(t))) {
       $('#closed').innerHTML = `Momentálně není otevřené přihlašování na žádný turnaj.
-        <a href="kalendar.html?akce=${encodeURIComponent(ev.slug)}">Termínový kalendář klubu</a>`;
+        <a href="klub.html">Klubová sekce – termínový kalendář</a>`;
       $('#closed').hidden = false;
       return;
     }

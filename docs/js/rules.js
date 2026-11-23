@@ -122,6 +122,19 @@
     return {};
   }
 
+  // barvy akcí podle značení termínového kalendáře
+  const GROUP_LABELS = {
+    ukss: 'krajské (ÚKŠS)', sscr: 'republikové (ŠSČR)', mladez: 'mládež', sscrm: 'mládež – ŠSČR', ostatni: 'ostatní turnaje',
+  };
+
+  /** Stav klubové akce (souhrn jejích turnajů): open / closed / none / league / past. */
+  function eventState(ev, now) {
+    const states = (ev.tournaments || []).map((t) => signupState(t, now));
+    const pick = (k) => states.find((x) => x.key === k);
+    return pick('open') || (states.length && states.every((x) => x.key === 'past') ? states[0] : null)
+      || pick('closed') || pick('none') || pick('league') || { key: 'none', text: 'výpravu nepořádáme' };
+  }
+
   const SIGNUP_LABELS = { open: 'přihlašování přes klub', none: 'výpravu nepořádáme', league: 'dlouhodobá soutěž' };
 
   /** Stav turnaje v klubovém kalendáři: {key, text} – proběhlo / dlouhodobá / nepořádáme / uzavřeno / otevřeno. */
@@ -267,7 +280,7 @@
     formatMoney, optionPrice, extraPrice, extraText, extrasTotal,
     norm, eventYear, isClosed, ruleText, eligibility, ratingWarning, samePlayer,
     tournamentLabel, tournamentClosed, tournamentPast, byDate, EVENT_KINDS, SIGNUP_LABELS, signupState,
-    categoriesOf, categoryLabel, bestCategory, categoryCheck, STATUS_LABELS, formatDate, formatRange,
+    categoriesOf, categoryLabel, bestCategory, categoryCheck, GROUP_LABELS, eventState, STATUS_LABELS, formatDate, formatRange,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.Rules = api;

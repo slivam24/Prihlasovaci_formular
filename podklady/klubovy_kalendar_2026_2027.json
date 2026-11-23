@@ -16,7 +16,8 @@
    "dateTo": "2026-07-11",
    "place": "Doksy – Termit",
    "note": "otevřený pro žáky kraje 2011 a ml.",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "MČR čtyřčlenných družstev",
@@ -28,6 +29,7 @@
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
    "signup": "none",
+   "group": "sscr",
    "boards": 4,
    "reserves": 1
   },
@@ -40,7 +42,8 @@
    "dateTo": "",
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Otevřené MČR v bleskovém maratónu",
@@ -51,7 +54,8 @@
    "dateTo": "2026-07-21",
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "MČR ve Fischerových šachách",
@@ -62,7 +66,8 @@
    "dateTo": "",
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Otevřené MČR v rapid šachu mužů",
@@ -73,7 +78,8 @@
    "dateTo": "2026-07-23",
    "place": "Pardubice",
    "note": "součást festivalu CZECH OPEN",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Czech Open Pardubice – hlavní turnaje",
@@ -84,7 +90,8 @@
    "dateTo": "2026-08-01",
    "place": "Pardubice",
    "note": "víc turnajů podle výkonnosti",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Mostecký šachový festival – rapid",
@@ -95,7 +102,8 @@
    "dateTo": "",
    "place": "Most",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Mostecký šachový festival – blesk",
@@ -106,7 +114,8 @@
    "dateTo": "",
    "place": "Most",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Krajské šachové soustředění",
@@ -117,7 +126,8 @@
    "dateTo": "2026-08-23",
    "place": "Tornův mlýn",
    "note": "2009 a mladší, KLT + pozvaní",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "MČR seniorů",
@@ -128,7 +138,8 @@
    "dateTo": "2026-08-23",
    "place": "Olomouc",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Open Chlumec = KP jednotlivců a žen, HD18+20, S50+65",
@@ -139,7 +150,8 @@
    "dateTo": "2026-08-30",
    "place": "Chlumec",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ukss"
   },
   {
    "name": "Libědická šachovnice",
@@ -150,7 +162,8 @@
    "dateTo": "",
    "place": "Libědice",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "MČR v rapid šachu družstev",
@@ -162,6 +175,7 @@
    "place": "Bystřice nad Pernštejnem",
    "note": "hotel Skalský Dvůr",
    "signup": "none",
+   "group": "sscr",
    "boards": 4,
    "reserves": 1
   },
@@ -175,6 +189,7 @@
    "place": "Bystřice nad Pernštejnem",
    "note": "hotel Skalský Dvůr",
    "signup": "none",
+   "group": "sscr",
    "boards": 4,
    "reserves": 1
   },
@@ -187,7 +202,8 @@
    "dateTo": "",
    "place": "Podbořany",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "MČR juniorů a juniorek v rapid šachu",
@@ -198,7 +214,8 @@
    "dateTo": "2026-09-13",
    "place": "Česká Třebová",
    "note": "kategorie 2006, 2008 a 2010 a ml.; v kalendáři 12. i 13. 9.",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "MČR mládeže v rapid šachu",
@@ -209,7 +226,8 @@
    "dateTo": "2026-09-13",
    "place": "Česká Třebová",
    "note": "kategorie 2012, 2014 a 2016 a ml.; v kalendáři 12. i 13. 9.",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Kvalifikační turnaj mládeže o účast na ZODM",
@@ -220,7 +238,8 @@
    "dateTo": "",
    "place": "konkurz",
    "note": "kat. 2011, 2013, 2015 a ml., D 2011 a ml.; místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "Srbický rapid – 9. ročník",
@@ -231,7 +250,8 @@
    "dateTo": "",
    "place": "Srbice",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Krajský tréninkový kemp mládeže",
@@ -242,7 +262,8 @@
    "dateTo": "2026-09-28",
    "place": "Svor",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "Extraliga mládeže a 1. liga mládeže – 1. termín",
@@ -253,7 +274,8 @@
    "dateTo": "2026-10-04",
    "place": "dle skupin",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscrm"
   },
   {
    "name": "1. turnaj GP Ústeckého kraje",
@@ -265,6 +287,7 @@
    "place": "Chomutov",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "none",
+   "group": "mladez",
    "categories": "2016, 2012, 2008"
   },
   {
@@ -276,7 +299,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 1. kolo",
@@ -287,7 +311,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "VC Mostu – turnaj čtyřčlenných družstev",
@@ -299,6 +324,7 @@
    "place": "Most",
    "note": "1. turnaj seriálu podzimních VC, 2011 a ml.",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -311,7 +337,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 1. kolo",
@@ -322,7 +349,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Mistrovství Čech mládeže HD12–HD16",
@@ -333,7 +361,8 @@
    "dateTo": "2026-10-31",
    "place": "Harrachov",
    "note": "kategorie 2011, 2013 a 2015 a ml.; podzimní prázdniny",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Chomutovský král – podzimní (13. ročník)",
@@ -344,7 +373,8 @@
    "dateTo": "",
    "place": "Chomutov",
    "note": "termín jen navržený („obvyklý termín“)",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Extraliga – 1. kolo",
@@ -355,7 +385,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "2. liga – 2. kolo",
@@ -366,7 +397,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Extraliga – 2. kolo",
@@ -377,7 +409,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 2. kolo",
@@ -388,7 +421,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Okresní kola přeboru škol",
@@ -399,7 +433,8 @@
    "dateTo": "2026-11-18",
    "place": "po bývalých okresech",
    "note": "Chomutov 4. 11., okres Litoměřice ve Štětí 18. 11.; jinak dle okresů",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "VC Teplic – turnaj čtyřčlenných družstev",
@@ -411,6 +446,7 @@
    "place": "Teplice",
    "note": "2. turnaj seriálu podzimních VC, 2011 a ml.",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -423,7 +459,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 2. kolo",
@@ -434,7 +471,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Mistrovství Čech HD8–HD10",
@@ -445,7 +483,8 @@
    "dateTo": "2026-11-15",
    "place": "Most",
    "note": "kategorie 2017 a 2019 a ml.",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Polofinále MČR juniorek a dorostenek",
@@ -456,7 +495,8 @@
    "dateTo": "2026-11-21",
    "place": "konkurz",
    "note": "kategorie 2007 a 2009 a ml.; místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Polofinále MČR juniorů a dorostenců",
@@ -467,7 +507,8 @@
    "dateTo": "2026-11-21",
    "place": "konkurz",
    "note": "kategorie 2007 a 2009 a ml.; místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "2. liga – 3. kolo",
@@ -478,7 +519,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 3. kolo",
@@ -489,7 +531,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "2. turnaj GP Ústeckého kraje",
@@ -501,6 +544,7 @@
    "place": "Litoměřice",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "none",
+   "group": "mladez",
    "categories": "2016, 2012, 2008"
   },
   {
@@ -512,7 +556,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 3. kolo",
@@ -523,7 +568,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "VC Ústí – turnaj čtyřčlenných družstev",
@@ -535,6 +581,7 @@
    "place": "Chlumec",
    "note": "3. turnaj seriálu podzimních VC, 2011 a ml., závěr",
    "signup": "open",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1,
    "minBirthYear": 2011,
@@ -549,7 +596,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 4. kolo",
@@ -560,7 +608,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Extraliga mládeže a 1. liga mládeže – 2. termín",
@@ -571,7 +620,8 @@
    "dateTo": "",
    "place": "dle skupin",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 4. kolo",
@@ -582,7 +632,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 4. kolo",
@@ -593,7 +644,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Vánoční šachovnice",
@@ -604,7 +656,8 @@
    "dateTo": "",
    "place": "Štětí",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Extraliga – 3. kolo",
@@ -615,7 +668,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "2. liga – 5. kolo",
@@ -626,7 +680,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Extraliga – 4. kolo",
@@ -637,7 +692,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 5. kolo",
@@ -648,7 +704,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Memoriál Rudolfa Kotlana – 14. ročník",
@@ -659,7 +716,8 @@
    "dateTo": "",
    "place": "Opočno u Loun",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "MČR jednotlivců v bleskovém šachu a ples",
@@ -670,7 +728,8 @@
    "dateTo": "",
    "place": "neurčeno",
    "note": "místo zatím neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscr"
   },
   {
    "name": "Vánoční Teplice – turnaj dětí a mládeže",
@@ -681,7 +740,8 @@
    "dateTo": "",
    "place": "Teplice",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Extraliga mládeže a 1. liga mládeže – 3. termín",
@@ -692,7 +752,8 @@
    "dateTo": "",
    "place": "dle skupin",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 5. kolo",
@@ -703,7 +764,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 5. kolo",
@@ -714,7 +776,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajské kolo přeboru škol",
@@ -725,7 +788,8 @@
    "dateTo": "",
    "place": "Chlumec (předb.)",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "3. turnaj GP Ústeckého kraje",
@@ -737,6 +801,7 @@
    "place": "Štětí",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2008,
    "deadline": "2027-01-14",
    "categories": "2016, 2012, 2008"
@@ -750,7 +815,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "2. liga – 6. kolo",
@@ -761,7 +827,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Extraliga – 6. kolo",
@@ -772,7 +839,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 6. kolo",
@@ -783,7 +851,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajský přebor družstev starších žáků – 1. termín",
@@ -795,6 +864,7 @@
    "place": "dle rozpisu",
    "note": "kategorie 2011 a 2014 a ml.; 2. termín 2. nebo 8. 5.",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -807,7 +877,8 @@
    "dateTo": "2027-01-28",
    "place": "Sušice",
    "note": "výběr kraje (kvalifikace 19. 9.)",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 6. kolo",
@@ -818,7 +889,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 6. kolo",
@@ -829,7 +901,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajský tréninkový kemp mládeže",
@@ -840,7 +913,8 @@
    "dateTo": "2027-01-30",
    "place": "Ústí nad Labem",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "2. liga – 7. kolo",
@@ -851,7 +925,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 7. kolo",
@@ -862,7 +937,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "1. liga – 7. kolo",
@@ -873,7 +949,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 7. kolo",
@@ -884,7 +961,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "2. liga – 8. kolo",
@@ -895,7 +973,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 8. kolo",
@@ -906,7 +985,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Pražský šachový festival",
@@ -917,7 +997,8 @@
    "dateTo": "2027-02-26",
    "place": "Praha",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "1. liga – 8. kolo",
@@ -928,7 +1009,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 8. kolo",
@@ -939,7 +1021,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "4. turnaj GP Ústeckého kraje",
@@ -951,6 +1034,7 @@
    "place": "Most",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2008,
    "deadline": "2027-02-25",
    "categories": "2016, 2012, 2008"
@@ -964,7 +1048,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 9. kolo",
@@ -975,7 +1060,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajský přebor v bleskovém šachu družstev",
@@ -987,6 +1073,7 @@
    "place": "konkurz",
    "note": "místo zatím neurčeno",
    "signup": "none",
+   "group": "ukss",
    "boards": 4,
    "reserves": 1
   },
@@ -999,7 +1086,8 @@
    "dateTo": "2027-03-13",
    "place": "neurčeno",
    "note": "místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "Mistrovství ČR HD18–HD20",
@@ -1010,7 +1098,8 @@
    "dateTo": "2027-03-13",
    "place": "neurčeno",
    "note": "místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 9. kolo",
@@ -1021,7 +1110,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 9. kolo",
@@ -1032,7 +1122,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Krajský přebor družstev mladších žáků",
@@ -1044,6 +1135,7 @@
    "place": "Litoměřice nebo konkurz",
    "note": "",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -1057,6 +1149,7 @@
    "place": "Litoměřice nebo konkurz",
    "note": "",
    "signup": "none",
+   "group": "ukss",
    "boards": 4,
    "reserves": 1
   },
@@ -1069,7 +1162,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "2. liga – 10. kolo",
@@ -1080,7 +1174,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Extraliga – 8. kolo",
@@ -1091,7 +1186,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 10. kolo",
@@ -1102,7 +1198,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Velikonoční Teplice – turnaj dětí a mládeže",
@@ -1113,7 +1210,8 @@
    "dateTo": "",
    "place": "Teplice",
    "note": "prázdninový čtvrtek před Velikonocemi",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Velikonoční turnaj",
@@ -1124,7 +1222,8 @@
    "dateTo": "",
    "place": "Štětí",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "5. turnaj GP Ústeckého kraje",
@@ -1136,6 +1235,7 @@
    "place": "Teplice",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2008,
    "deadline": "2027-04-01",
    "categories": "2016, 2012, 2008"
@@ -1149,7 +1249,8 @@
    "dateTo": "2027-04-04",
    "place": "konkurz",
    "note": "místo neurčeno",
-   "signup": "none"
+   "signup": "none",
+   "group": "sscrm"
   },
   {
    "name": "1. liga – 10. kolo",
@@ -1160,7 +1261,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 10. kolo",
@@ -1171,7 +1273,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Extraliga – 9.–11. kolo",
@@ -1182,7 +1285,8 @@
    "dateTo": "2027-04-11",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor v rapid šachu HD8–HD20",
@@ -1194,6 +1298,7 @@
    "place": "Děčín (zájem)",
    "note": "kat. 2007 a ml., postupové jen 2013 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2007,
    "deadline": "2027-04-08"
   },
@@ -1206,7 +1311,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor II – 11. kolo",
@@ -1217,7 +1323,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "6. turnaj GP Ústeckého kraje + celkové vyhodnocení GP",
@@ -1229,6 +1336,7 @@
    "place": "Chomutov",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2008,
    "deadline": "2027-04-15",
    "categories": "2016, 2012, 2008"
@@ -1242,7 +1350,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscr"
   },
   {
    "name": "Krajský přebor I a III – 11. kolo",
@@ -1253,7 +1362,8 @@
    "dateTo": "",
    "place": "",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "ukss"
   },
   {
    "name": "Extraliga mládeže a 1. liga mládeže – 4. termín",
@@ -1264,7 +1374,8 @@
    "dateTo": "2027-04-25",
    "place": "dle skupin",
    "note": "",
-   "signup": "league"
+   "signup": "league",
+   "group": "sscrm"
   },
   {
    "name": "Chomutovský král – jarní (13. ročník)",
@@ -1275,7 +1386,8 @@
    "dateTo": "",
    "place": "Chomutov",
    "note": "termín jen navržený („obvyklý termín“)",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "Krajský přebor družstev starších žáků – 2. termín",
@@ -1287,6 +1399,7 @@
    "place": "dle rozpisu",
    "note": "kategorie 2011 a 2014 a ml.; termín 2. nebo 8. 5.",
    "signup": "none",
+   "group": "mladez",
    "boards": 4,
    "reserves": 1
   },
@@ -1299,7 +1412,8 @@
    "dateTo": "",
    "place": "Chlumec",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   },
   {
    "name": "KP jednotlivců, žen, H+D 16, 18, 20 v blesku",
@@ -1310,7 +1424,8 @@
    "dateTo": "",
    "place": "Chlumec",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "ukss"
   },
   {
    "name": "36. ročník Memoriálu Antonína Drvoty",
@@ -1321,7 +1436,8 @@
    "dateTo": "",
    "place": "Teplice",
    "note": "uchází se o status krajského přeboru",
-   "signup": "none"
+   "signup": "none",
+   "group": "ukss"
   },
   {
    "name": "Krajský přebor mládeže HD10–HD16",
@@ -1333,6 +1449,7 @@
    "place": "Chomutov",
    "note": "kategorie 2012, 2014, 2016 a 2018 a ml.",
    "signup": "open",
+   "group": "mladez",
    "minBirthYear": 2012,
    "deadline": "2027-05-20",
    "categories": "2018, 2016, 2014, 2012"
@@ -1347,6 +1464,7 @@
    "place": "neurčeno",
    "note": "místo neurčeno",
    "signup": "none",
+   "group": "sscrm",
    "boards": 4,
    "reserves": 1
   },
@@ -1359,7 +1477,8 @@
    "dateTo": "2027-06-06",
    "place": "neurčeno",
    "note": "",
-   "signup": "none"
+   "signup": "none",
+   "group": "mladez"
   },
   {
    "name": "MČR družstev mladších žáků",
@@ -1371,6 +1490,7 @@
    "place": "neurčeno",
    "note": "místo neurčeno",
    "signup": "none",
+   "group": "sscrm",
    "boards": 4,
    "reserves": 1
   },
@@ -1383,7 +1503,8 @@
    "dateTo": "2027-06-27",
    "place": "Teplice (předb.)",
    "note": "mezinárodní FIDE turnaj",
-   "signup": "none"
+   "signup": "none",
+   "group": "ostatni"
   }
  ],
  "extras": [

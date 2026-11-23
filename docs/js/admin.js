@@ -221,10 +221,48 @@
     if (changed && (location.hash || '#/') === here && !dialog.open) renderEvents(data);
   }
 
+  let eventsTab = 'events';
+  let clubShowPast = false;
+
+  /** Přehled klubové sekce: každá akce = soutěž z kalendáře, přepínač přihlašování a úpravy přímo v tabulce. */
+  function clubListHtml(events) {
+    const today = new Date().toISOString().slice(0, 10);
+    const sorted = events.slice().sort((a, b) => String(a.dateFrom).localeCompare(String(b.dateFrom)));
+    const past = sorted.filter((ev) => (ev.dateTo || ev.dateFrom) < today);
+    const list = clubShowPast ? sorted : sorted.filter((ev) => (ev.dateTo || ev.dateFrom) >= today);
+    const open = sorted.filter((ev) => R.eventState(ev).key === 'open').length;
+    return `<div class="card">
+      <div class="page-head"><p class="small muted">${R.plural(sorted.length, 'akce', 'akce', 'akcí')} v klubové sekci, přihlašování otevřeno u ${open}.
+        Veřejný přehled: <a href="klub.html" target="_blank">klubová sekce ↗</a></p>
+        <button type="button" class="link" id="club-past">${clubShowPast ? 'jen nadcházející' : `zobrazit i proběhlé (${past.length})`}</button></div>
+      <div class="table-wrap"><table class="admin-table cal-admin">
+        <thead><tr><th>Termín</th><th>Akce</th><th>Místo</th><th>Přihlašování</th><th>Uzávěrka</th><th class="num">Přihl.</th><th></th></tr></thead>
+        <tbody>${list.map((ev) => {
+          const t = ev.tournaments[0];
+          const st = R.eventState(ev);
+          return `<tr class="${st.key === 'past' ? 'cancelled-soft' : ''} ${ev.group ? 'grp-' + ev.group : ''}">
+            <td>${ev.group ? '<span class="group-dot"></span>' : ''}${esc(R.formatRange(ev.dateFrom, ev.dateTo))}</td>
+            <td><a href="#/akce/${esc(ev.id)}">${esc(ev.name)}</a>${ev.status !== 'otevreno' ? ' ' + statusBadge(ev.status) : ''}
+              ${t && t.note ? `<div class="small muted">${esc(t.note)}</div>` : ''}</td>
+            <td>${esc(ev.place || '')}</td>
+            <td>${t && ev.tournaments.length === 1 ? `<select data-club-signup="${esc(ev.id)}" aria-label="Přihlašování na ${esc(ev.name)}">${Object.keys(R.SIGNUP_LABELS).map((k) =>
+              `<option value="${k}"${(t.signup || 'open') === k ? ' selected' : ''}>${esc(k === 'open' ? 'otevřené' : R.SIGNUP_LABELS[k])}</option>`).join('')}</select>
+              ${st.key === 'closed' ? '<div class="small muted">po uzávěrce</div>' : ''}` : esc(st.text)}</td>
+            <td>${t && t.deadline ? esc(R.formatDate(t.deadline)) : ''}</td>
+            <td class="num">${ev.registrations || ''}</td>
+            <td class="row-actions">${t && ev.tournaments.length === 1 ? `<button type="button" class="link" data-club-edit="${esc(ev.id)}">Upravit</button>` : ''}
+              <a href="#/akce/${esc(ev.id)}/upravit">Editor</a></td>
+          </tr>`;
+        }).join('')}</tbody></table></div></div>`;
+  }
+
   function renderEvents(data) {
     me = data.user;
     updateBar();
-    const rows = data.events.map((ev) => `<tr>
+    const clubEvents = data.events.filter((ev) => ev.kind === 'club');
+    const mainEvents = data.events.filter((ev) => ev.kind !== 'club');
+    if (!clubEvents.length) eventsTab = 'events';
+    const rows = mainEvents.map((ev) => `<tr>
       <td><a href="#/akce/${esc(ev.id)}"><strong>${esc(ev.name)}</strong></a>${ev.kind === 'club' ? ' <span class="badge kind-badge">klubová sekce</span>' : ''}
         <div class="small muted">${esc(ev.tournaments.map((t) => `${t.short || t.name} (${t.count})`).join(' · '))}</div></td>
       <td>${esc(R.formatRange(ev.dateFrom, ev.dateTo))}</td>
@@ -246,10 +284,33 @@
         </div>
       </div>
       ${systemNotice(data.system)}
-      ${data.events.length ? `<div class="card table-wrap"><table class="admin-table">
+      ${clubEvents.length ? `<div class="seg tabs" role="tablist">
+        <button type="button" role="tab" data-tab="events" aria-pressed="${eventsTab === 'events'}">Akce (${mainEvents.length})</button>
+        <button type="button" role="tab" data-tab="club" aria-pressed="${eventsTab === 'club'}">Klubová sekce (${clubEvents.length})</button>
+      </div>` : ''}
+      ${eventsTab === 'club' ? clubListHtml(clubEvents) : mainEvents.length ? `<div class="card table-wrap"><table class="admin-table">
         <thead><tr><th>Akce</th><th>Termín</th><th>Stav</th><th>Přihlášek</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>`
         : '<div class="card"><p>Zatím tu nejsou žádné akce. Začněte tlačítkem „Nová akce“.</p></div>'}`;
+
+    $$('[data-tab]').forEach((b) => b.addEventListener('click', () => { eventsTab = b.dataset.tab; renderEvents(data); }));
+    const pastBtn = $('#club-past');
+    if (pastBtn) pastBtn.addEventListener('click', () => { clubShowPast = !clubShowPast; renderEvents(data); });
+    const savedInList = (res) => {
+      const i = data.events.findIndex((e) => e.id === res.event.id);
+      if (i >= 0) data.events[i] = res.event;
+      delete memo.event[res.event.id];
+      renderEvents(data);
+    };
+    const clubEv = (id) => data.events.find((e) => e.id === id);
+    $$('[data-club-signup]').forEach((sel) => sel.addEventListener('change', () => {
+      const ev = clubEv(sel.dataset.clubSignup);
+      signupChange(sel, ev, ev.tournaments[0], savedInList);
+    }));
+    $$('[data-club-edit]').forEach((b) => b.addEventListener('click', () => {
+      const ev = clubEv(b.dataset.clubEdit);
+      tourEditDialog(ev, ev.tournaments[0], savedInList);
+    }));
 
     $('#import-event').addEventListener('click', importDialog);
     $$('[data-copy]').forEach((b) => b.addEventListener('click', () => copyEventDialog(data.events.find((e) => e.id === b.dataset.copy))));
@@ -584,6 +645,8 @@
             <label>Místo<input name="place" value="${esc(ev.place || '')}"></label>
             <label>Stav<select name="status">${options(statusOpts, ev.status)}</select>
               <span class="hint">Formulář je dostupný jen ve stavu „přihlašování otevřeno“.</span></label>
+            <label>Barva v přehledu<select name="group"><option value="">výchozí</option>${options(R.GROUP_LABELS, ev.group || '')}</select>
+              <span class="hint">podle značení termínového kalendáře</span></label>
             <label>Druh akce<select name="kind">${options(R.EVENT_KINDS, ev.kind || 'event')}</select>
               <span class="hint club-only">Není v přehledu akcí, odkaz rozešlete členům. Turnaje mají vlastní datum, místo a uzávěrku.</span></label>
             <label>Začátek <span class="req">*</span><input type="date" name="dateFrom" value="${esc(ev.dateFrom || '')}"></label>
@@ -677,7 +740,7 @@
       const val = (card, field) => { const el = $(`[data-f="${field}"]`, card); return el ? el.value.trim() : ''; };
       const event = {
         id: id || undefined,
-        name: f.name.value, place: f.place.value, status: f.status.value, kind: f.kind.value,
+        name: f.name.value, place: f.place.value, status: f.status.value, kind: f.kind.value, group: f.group.value,
         dateFrom: f.dateFrom.value, dateTo: f.dateTo.value, deadline: f.deadline.value,
         slug: f.slug.value, infoUrl: f.infoUrl.value, intro: f.intro.value,
         contactEmail: f.contactEmail.value, admins: f.admins.value,
@@ -882,7 +945,7 @@
     const allTours = club ? R.byDate(ev.tournaments) : ev.tournaments;
     // klubový kalendář: karty s přihláškami jen u turnajů s otevřeným přihlašováním nebo s přihlášenými
     const tourList = club ? allTours.filter((t) => (t.signup || 'open') === 'open' || t.count) : allTours;
-    const calendarUrl = `kalendar.html?akce=${encodeURIComponent(ev.slug)}`;
+    const calendarUrl = 'klub.html';
     const publicUrl = `prihlaska.html?akce=${encodeURIComponent(ev.slug)}`;
     const listUrl = `seznam.html?akce=${encodeURIComponent(ev.slug)}`;
     const canOpen = ev.status !== 'otevreno';
@@ -911,7 +974,14 @@
       ${ev.status === 'koncept' ? '<p class="notice-inline">Akce je rozpracovaná – formulář ani seznam zatím nejsou veřejné.</p>' : ''}
       ${systemNotice(current.system)}
 
-      ${club ? clubCalendarSection(allTours) : ''}
+      ${club && allTours.length > 1 ? clubCalendarSection(allTours) : ''}
+      ${club && allTours.length === 1 ? `<div class="card signup-bar">
+        <label>Přihlašování přes klub <select data-signup="${esc(allTours[0].id)}">${Object.keys(R.SIGNUP_LABELS).map((k) =>
+          `<option value="${k}"${(allTours[0].signup || 'open') === k ? ' selected' : ''}>${esc(k === 'open' ? 'otevřené' : R.SIGNUP_LABELS[k])}</option>`).join('')}</select></label>
+        <span>${allTours[0].deadline ? 'uzávěrka ' + esc(R.formatDate(allTours[0].deadline)) : 'bez uzávěrky (do začátku)'}</span>
+        ${allTours[0].note ? `<span class="muted">${esc(allTours[0].note)}</span>` : ''}
+        <button type="button" class="link" data-tour-edit="${esc(allTours[0].id)}">Upravit uzávěrku, poznámku, kategorie</button>
+      </div>` : ''}
       ${tourList.length > 1 ? `<nav class="jump" aria-label="Turnaje akce"><span class="small muted">Přejít na:</span>${tourList.map((t) =>
         `<button type="button" class="chip" data-jump="t-${esc(t.id)}">${esc(t.short || t.name)} <strong>${t.count}</strong></button>`).join('')}</nav>` : ''}
 
@@ -982,8 +1052,9 @@
     $('#export-all').addEventListener('click', exportAll);
     $('#recalc-ratings').addEventListener('click', recalcRatingsDialog);
     $$('[data-org-xlsx]').forEach((b) => b.addEventListener('click', () => exportForOrganizer(b.dataset.orgXlsx)));
-    $$('[data-signup]').forEach((sel) => sel.addEventListener('change', () => signupChange(sel)));
-    $$('[data-tour-edit]').forEach((b) => b.addEventListener('click', () => tourEditDialog(b.dataset.tourEdit)));
+    const tourOf = (id) => current.event.tournaments.find((x) => x.id === id);
+    $$('[data-signup]').forEach((sel) => sel.addEventListener('change', () => signupChange(sel, current.event, tourOf(sel.dataset.signup), savedInDetail)));
+    $$('[data-tour-edit]').forEach((b) => b.addEventListener('click', () => tourEditDialog(current.event, tourOf(b.dataset.tourEdit), savedInDetail)));
     const calToggle = $('#cal-toggle');
     if (calToggle) calToggle.addEventListener('click', () => { showCalendarAll = !showCalendarAll; renderEvent(); });
     $$('[data-org-text]').forEach((b) => b.addEventListener('click', () => organizerTextDialog(b.dataset.orgText)));
@@ -1200,9 +1271,14 @@
   }
 
   /** Úprava turnaje v kalendáři: uzávěrka, poznámka, propozice, kategorie (bez otevírání editoru akce). */
-  function tourEditDialog(id) {
-    const ev = current.event;
-    const t = ev.tournaments.find((x) => x.id === id);
+  /** Po uložení turnaje v detailu akce. */
+  function savedInDetail(res) {
+    Object.assign(current.event, res.event);
+    delete memo.event[current.event.id];
+    renderEvent();
+  }
+
+  function tourEditDialog(ev, t, onSaved) {
     openDialog(`<form class="dialog-form">
       <h2>${esc(R.tournamentLabel(t))}</h2>
       <div class="grid">
@@ -1226,10 +1302,8 @@
           const body = { eventId: ev.id, tournamentId: t.id, deadline: f.deadline.value, note: f.note.value, infoUrl: f.infoUrl.value };
           if (f.categories) body.categories = f.categories.value;
           const res = await call('setTournamentSignup', body);
-          Object.assign(current.event, res.event);
-          delete memo.event[ev.id];
           dialog.close();
-          renderEvent();
+          onSaved(res);
         } catch (err) {
           btn.disabled = false;
           const box = $('.errors', d);
@@ -1240,18 +1314,14 @@
     });
   }
 
-  function signupChange(sel) {
-    const ev = current.event;
-    const t = ev.tournaments.find((x) => x.id === sel.dataset.signup);
+  function signupChange(sel, ev, t, onSaved) {
     const prev = t.signup || 'open';
     const value = sel.value;
     const save = async (body) => {
       sel.disabled = true;
       try {
         const res = await call('setTournamentSignup', Object.assign({ eventId: ev.id, tournamentId: t.id, signup: value }, body || {}));
-        Object.assign(current.event, res.event);
-        delete memo.event[ev.id];
-        renderEvent();
+        onSaved(res);
       } catch (e) {
         alert(e.message);
         sel.value = prev;

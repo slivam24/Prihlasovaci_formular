@@ -10,7 +10,8 @@ const { createGas, CLIENT_ID } = require('./gas-mock.js');
 
 const port = Number(process.argv[2]) || 8000;
 const root = path.join(__dirname, '..', 'docs');
-const gas = createGas({ owner: 'owner@example.cz', props: { SITE_URL: `http://localhost:${port}/` } });
+// SEED=1 založí i klubovou sekci (termínový kalendář 2026/2027)
+const gas = createGas({ owner: 'owner@example.cz', seed: !!process.env.SEED, props: { SITE_URL: `http://localhost:${port}/` } });
 
 if (process.env.SEED !== '0') {
   // ukázková akce, rovnou otevřená a s termínem za dva měsíce

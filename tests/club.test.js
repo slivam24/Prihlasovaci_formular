@@ -116,19 +116,18 @@ test('klubový kalendář 2026/2027 (podklady) projde importem a uložením', ()
   assert.match(gas.post({ action: 'admin.setTournamentSignup', idToken: fakeToken(OWNER), eventId: res.event.id, tournamentId: none.id, signup: 'open', deadline: '2099-01-01' }).error, /po začátku/);
 });
 
-test('jednorázové založení klubového kalendáře při prvním požadavku', () => {
+test('nová instalace: klubový kalendář jako samostatné akce', () => {
   const gas = createGas({ owner: OWNER, seed: true });
-  assert.equal(gas.get({ action: 'events' }).ok, true);
-  const ev = gas.get({ action: 'event', slug: 'kalendar-2026-2027' }).event;
-  assert.equal(ev.kind, 'club');
-  assert.equal(ev.status, 'otevreno');
-  assert.equal(ev.tournaments.length, 121);
-  assert.ok(gas.props.SEED_KALENDAR_2026, 'poznamenáno');
-  // podruhé už nic nezakládá
+  assert.equal(gas.get({ action: 'events' }).events.length, 0, 'v hlavním přehledu nejsou');
+  const club = gas.get({ action: 'events', kind: 'club' }).events;
+  assert.equal(club.length, 121);
+  assert.ok(club.every((e) => e.kind === 'club' && e.tournaments.length === 1 && e.status === 'otevreno'));
+  assert.equal(club.filter((e) => e.tournaments[0].signup === 'open').length, 7);
+  const gp = club.find((e) => e.name === '3. turnaj GP Ústeckého kraje');
+  assert.deepEqual([gp.slug, gp.group, gp.dateFrom, gp.tournaments[0].categories], ['2027-01-16-3-turnaj-gp-usteckeho-kraje', 'mladez', '2027-01-16', [2016, 2012, 2008]]);
+  assert.ok(gas.props.SEED_KALENDAR_2026);
   gas.props.SEED_KALENDAR_2026 = '';
-  gas.get({ action: 'events' });
-  const list = gas.post({ action: 'admin.events', idToken: fakeToken(OWNER) }).events;
-  assert.equal(list.filter((e) => e.slug.startsWith('kalendar-2026-2027')).length, 1);
+  assert.equal(gas.get({ action: 'events', kind: 'club' }).events.length, 121, 'podruhé nic nepřidá');
 });
 
 test('věkové kategorie GP: do mladší ne, do starší ano, výchozí podle ročníku', () => {
@@ -162,15 +161,26 @@ test('věkové kategorie GP: do mladší ne, do starší ano, výchozí podle ro
   assert.deepEqual([t2.signup, t2.deadline, t2.note, t2.categories], ['open', day(25), 'sraz 8:00 u nádraží', [2016, 2012]]);
 });
 
+/** Stav jako v provozu: jedna akce se všemi soutěžemi (před rozdělením). */
+function bigCalendar(props) {
+  const fs = require('fs');
+  const path = require('path');
+  const gas = createGas({ owner: OWNER, props: Object.assign({ KALENDAR_2026_V2: 'later', KALENDAR_2026_V3: 'later' }, props || {}) });
+  const { event } = parseImport(fs.readFileSync(path.join(__dirname, '../podklady/klubovy_kalendar_2026_2027.json'), 'utf8'));
+  event.status = 'otevreno';
+  event.slug = 'kalendar-2026-2027'; // adresa jako u akce založené v provozu
+  const res = gas.post({ action: 'admin.saveEvent', idToken: fakeToken(OWNER), event });
+  assert.equal(res.ok, true, res.error);
+  return { gas, ev: res.event };
+}
+
 test('jednorázová úprava kalendáře: kategorie a uzávěrka 2 dny před (jen neupravené)', () => {
-  const gas = createGas({ owner: OWNER, seed: true, props: { KALENDAR_2026_V2: 'later' } });
-  gas.get({ action: 'events' });
+  const { gas } = bigCalendar();
   const sheet = gas.sheets['Turnaje'];
   const h = sheet.data[0];
   const row = (name) => sheet.data.find((r) => r[h.indexOf('name')] === name);
   const gp = row('3. turnaj GP Ústeckého kraje');
   const kp = row('Krajský přebor v rapid šachu HD8–HD20');
-  // stav jako po prvním založení: uzávěrka týden předem, bez kategorií; KP ručně upravený
   gp[h.indexOf('deadline')] = '2027-01-09'; gp[h.indexOf('categories')] = '';
   kp[h.indexOf('deadline')] = '2027-04-05';
   gas.props.KALENDAR_2026_V2 = '';
@@ -181,4 +191,26 @@ test('jednorázová úprava kalendáře: kategorie a uzávěrka 2 dny před (jen
   assert.deepEqual(t('3. turnaj GP Ústeckého kraje').categories, [2016, 2012, 2008]);
   assert.equal(t('Krajský přebor v rapid šachu HD8–HD20').deadline, '2027-04-05', 'ručně změněnou uzávěrku nechá');
   assert.ok(gas.props.KALENDAR_2026_V2);
+});
+
+test('rozdělení kalendáře na samostatné akce i s přihláškami', () => {
+  const { gas, ev } = bigCalendar();
+  const gp = ev.tournaments.find((t) => t.name === '3. turnaj GP Ústeckého kraje');
+  const kp = ev.tournaments.find((t) => t.name === 'Krajský přebor v rapid šachu HD8–HD20');
+  const p = Object.assign(player(5, 'Malý'), { year: 2013 });
+  const reg = gas.post({ action: 'register', slug: 'kalendar-2026-2027', mode: 'individual', email: 'r@x.cz', player: p, tournaments: [gp.id, kp.id] });
+  assert.equal(reg.ok, true, reg.error);
+  gas.props.KALENDAR_2026_V3 = '';
+  const club = gas.get({ action: 'events', kind: 'club' }).events;
+  assert.equal(club.length, 121);
+  assert.equal(gas.get({ action: 'event', slug: 'kalendar-2026-2027' }).ok, false, 'původní akce zmizela');
+  const gpEv = club.find((e) => e.tournaments[0].id === gp.id);
+  assert.deepEqual([gpEv.name, gpEv.group, gpEv.dateFrom, gpEv.deadline], ['3. turnaj GP Ústeckého kraje', 'mladez', '2027-01-16', gp.deadline]);
+  const list = gas.get({ action: 'list', slug: gpEv.slug }).tournaments[gp.id];
+  assert.deepEqual(list.map((x) => x.name), ['Malý Jan'], 'přihláška se přesunula');
+  const app = gas.get({ action: 'application', token: reg.editToken });
+  assert.equal(app.ok, true, app.error);
+  assert.equal(app.application.entries.length, 1, 'odkaz na změnu ukáže řádky jedné akce');
+  const detail = gas.post({ action: 'admin.event', idToken: fakeToken(OWNER), id: gpEv.id });
+  assert.equal(detail.registrations.length, 1);
 });
