@@ -185,6 +185,18 @@
 
   // ---------- kalendář ----------
 
+  /** Pruh akce v kalendáři (přes víc dní jeden souvislý pruh). */
+  function calBar(ev, col, span, lane, cont) {
+    const open = isOpen(ev);
+    const cls = `cal-ev${ev.group ? ' grp-' + ev.group : ''}${CLUB ? ' cal-' + clubState(ev).key : open ? '' : ' closed'}` +
+      `${cont.left ? ' cont-left' : ''}${cont.right ? ' cont-right' : ''}`;
+    const name = CLUB && span === 1 ? (ev.tournaments[0] && ev.tournaments[0].short) || ev.name : ev.name;
+    const style = `grid-column:${col + 1} / span ${span};grid-row:${lane + 2}`;
+    const title = esc(ev.name) + (CLUB ? ' – ' + esc(clubState(ev).text) : '');
+    if (CLUB && !open) return `<span class="${cls}" style="${style}" title="${title}">${esc(name)}</span>`;
+    return `<a class="${cls}" style="${style}" href="${open ? formUrl(ev) : listUrl(ev)}" title="${title}">${esc(name)}</a>`;
+  }
+
   function renderCalendar(events) {
     const upcoming = events.find((e) => (parse(e.dateTo) || parse(e.dateFrom) || today()) >= today());
     const first = parse((upcoming || events[0] || {}).dateFrom) || today();
@@ -193,29 +205,36 @@
     const m = state.month % 12;
     const start = new Date(y, m, 1);
     const gridStart = new Date(y, m, 1 - ((start.getDay() + 6) % 7));
-    const byDay = {};
-    events.forEach((ev) => {
-      const from = parse(ev.dateFrom);
-      if (!from) return;
-      const to = parse(ev.dateTo) || from;
-      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) (byDay[iso(d)] = byDay[iso(d)] || []).push(ev);
-    });
     const now = iso(today());
-    const cells = [];
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
-      if (i === 35 && d.getMonth() !== m) break; // šestý týden jen když je potřeba
-      const list = byDay[iso(d)] || [];
-      cells.push(`<div class="cal-cell${d.getMonth() !== m ? ' other' : ''}${iso(d) === now ? ' today' : ''}${list.length ? ' has' : ''}${list.length === 1 ? ' single' : ''}">
-        <span class="cal-num">${d.getDate()}</span>
-        ${list.map((ev) => {
-          const open = isOpen(ev);
-          const cls = `cal-ev${ev.group ? ' grp-' + ev.group : ''}${CLUB ? ' cal-' + clubState(ev).key : open ? '' : ' closed'}`;
-          const label = esc(CLUB ? (ev.tournaments[0] && ev.tournaments[0].short) || ev.name : ev.name);
-          if (CLUB && !open) return `<span class="${cls}" title="${esc(ev.name)} – ${esc(clubState(ev).text)}">${label}</span>`;
-          return `<a class="${cls}" href="${open ? formUrl(ev) : listUrl(ev)}" title="${esc(ev.name)}">${label}</a>`;
-        }).join('')}
-      </div>`);
+    const spans = events.map((ev) => {
+      const from = parse(ev.dateFrom);
+      return from ? { ev, from, to: parse(ev.dateTo) || from } : null;
+    }).filter(Boolean);
+    const weeks = [];
+    for (let w = 0; w < 6; w++) {
+      const wStart = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + w * 7);
+      if (w === 5 && wStart.getMonth() !== m) break; // šestý týden jen když je potřeba
+      const wEnd = new Date(wStart.getFullYear(), wStart.getMonth(), wStart.getDate() + 6);
+      const days = [];
+      for (let k = 0; k < 7; k++) {
+        const d = new Date(wStart.getFullYear(), wStart.getMonth(), wStart.getDate() + k);
+        days.push(`<div class="cal-day${d.getMonth() !== m ? ' other' : ''}${iso(d) === now ? ' today' : ''}${k === 5 ? ' sat' : k === 6 ? ' sun' : ''}"
+          style="grid-column:${k + 1}"></div><span class="cal-num${d.getMonth() !== m ? ' other' : ''}" style="grid-column:${k + 1};grid-row:1">${d.getDate()}</span>`);
+      }
+      // akce v týdnu: delší a dřívější první, každá do prvního volného řádku (lane)
+      const inWeek = spans.filter((x) => x.from <= wEnd && x.to >= wStart).map((x) => {
+        const a = x.from < wStart ? 0 : Math.round((x.from - wStart) / DAY);
+        const b = x.to > wEnd ? 6 : Math.round((x.to - wStart) / DAY);
+        return { x, a, b, left: x.from < wStart, right: x.to > wEnd };
+      }).sort((p, q) => p.a - q.a || (q.b - q.a) - (p.b - p.a));
+      const lanes = [];
+      const bars = inWeek.map((it) => {
+        let lane = lanes.findIndex((end) => end < it.a);
+        if (lane < 0) { lane = lanes.length; lanes.push(-1); }
+        lanes[lane] = it.b;
+        return calBar(it.x.ev, it.a, it.b - it.a + 1, lane, { left: it.left, right: it.right });
+      });
+      weeks.push(`<div class="cal-week" style="grid-template-rows:auto repeat(${Math.max(lanes.length, 1)}, auto)">${days.join('')}${bars.join('')}</div>`);
     }
     const inMonth = events.filter((ev) => {
       const from = parse(ev.dateFrom);
@@ -228,7 +247,8 @@
           <h2>${MONTHS[m]} ${y}</h2>
           <button type="button" class="button small-btn" data-cal="1" aria-label="Další měsíc">›</button>
         </div>
-        <div class="cal-grid">${WEEKDAYS.map((w) => `<div class="cal-wd">${w}</div>`).join('')}${cells.join('')}</div>
+        <div class="cal-wds">${WEEKDAYS.map((w, k) => `<div class="cal-wd${k === 5 ? ' sat' : k === 6 ? ' sun' : ''}">${w}</div>`).join('')}</div>
+        <div class="cal-weeks">${weeks.join('')}</div>
       </div>
       ${inMonth.length ? inMonth.map(row).join('') : '<p class="muted">V tomto měsíci není žádná akce.</p>'}`;
   }
