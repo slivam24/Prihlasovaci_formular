@@ -110,6 +110,8 @@
   function updateBar() {
     $('#nav').hidden = !me;
     $('#nav-users').hidden = !me || me.role !== 'superadmin';
+    const hasClub = memo.events && memo.events.events && memo.events.events.some((e) => e.kind === 'club');
+    $('#nav-club').hidden = !me || !(me.role === 'superadmin' || me.role === 'clubadmin' || hasClub);
     $('#who').textContent = me ? me.email : '';
     $('#logout').hidden = !me;
   }
@@ -211,13 +213,21 @@
   // Přehled akcí
   // =====================================================================
 
-  async function viewEvents() {
+  async function viewEvents(section) {
+    eventsTab = section || 'events';
     const here = location.hash || '#/';
     if (memo.events) renderEvents(memo.events);
     else loading('Načítám akce…');
     const data = await call('events');
     const changed = !memo.events || JSON.stringify(data.events) !== JSON.stringify(memo.events.events);
     memo.events = data;
+    // klubový admin bez vlastních akcí: rovnou do klubové sekce
+    const landing = !viewEvents.seen;
+    viewEvents.seen = true;
+    if (landing && eventsTab === 'events' && data.user && data.user.role === 'clubadmin' && !data.events.some((e) => e.kind !== 'club')) {
+      location.replace('#/klub');
+      return;
+    }
     if (changed && (location.hash || '#/') === here && !dialog.open) renderEvents(data);
   }
 
@@ -261,7 +271,7 @@
     updateBar();
     const clubEvents = data.events.filter((ev) => ev.kind === 'club');
     const mainEvents = data.events.filter((ev) => ev.kind !== 'club');
-    if (!clubEvents.length) eventsTab = 'events';
+    const club = eventsTab === 'club';
     const rows = mainEvents.map((ev) => `<tr>
       <td><a href="#/akce/${esc(ev.id)}"><strong>${esc(ev.name)}</strong></a>${ev.kind === 'club' ? ' <span class="badge kind-badge">klubová sekce</span>' : ''}
         <div class="small muted">${esc(ev.tournaments.map((t) => `${t.short || t.name} (${t.count})`).join(' · '))}</div></td>
@@ -277,23 +287,19 @@
     </tr>`).join('');
     app.innerHTML = `
       <div class="page-head">
-        <h1>Akce</h1>
+        <div><h1>${club ? 'Klubová sekce' : 'Pořadatelská sekce'}</h1>
+          <p class="small muted">${club ? 'Turnaje z termínového kalendáře, na které se členové hlásí klubu.' : 'Turnaje a festivaly, které pořádáte – veřejné na úvodní stránce.'}</p></div>
         <div class="actions">
           <button type="button" class="button" id="import-event">Importovat z propozic (AI)</button>
-          <a class="button primary" href="#/akce/nova">+ Nová akce</a>
+          <a class="button primary" href="${club ? '#/akce/nova-klub' : '#/akce/nova'}">+ Nová akce</a>
         </div>
       </div>
       ${systemNotice(data.system)}
-      ${clubEvents.length ? `<div class="seg tabs" role="tablist">
-        <button type="button" role="tab" data-tab="events" aria-pressed="${eventsTab === 'events'}">Akce (${mainEvents.length})</button>
-        <button type="button" role="tab" data-tab="club" aria-pressed="${eventsTab === 'club'}">Klubová sekce (${clubEvents.length})</button>
-      </div>` : ''}
-      ${eventsTab === 'club' ? clubListHtml(clubEvents) : mainEvents.length ? `<div class="card table-wrap"><table class="admin-table">
+      ${club ? (clubEvents.length ? clubListHtml(clubEvents) : '<div class="card"><p>Klubová sekce zatím nemá žádné akce.</p></div>') : mainEvents.length ? `<div class="card table-wrap"><table class="admin-table">
         <thead><tr><th>Akce</th><th>Termín</th><th>Stav</th><th>Přihlášek</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table></div>`
         : '<div class="card"><p>Zatím tu nejsou žádné akce. Začněte tlačítkem „Nová akce“.</p></div>'}`;
 
-    $$('[data-tab]').forEach((b) => b.addEventListener('click', () => { eventsTab = b.dataset.tab; renderEvents(data); }));
     const pastBtn = $('#club-past');
     if (pastBtn) pastBtn.addEventListener('click', () => { clubShowPast = !clubShowPast; renderEvents(data); });
     const savedInList = (res) => {
@@ -610,9 +616,10 @@
     name.addEventListener('input', () => { $('.sub-card-head strong', card).textContent = name.value || '…'; });
   }
 
-  async function viewEditor(id) {
+  async function viewEditor(id, defaults) {
     loading();
     let ev = {
+      kind: (defaults && defaults.kind) || 'event', group: defaults && defaults.kind === 'club' ? 'ostatni' : '',
       status: 'koncept', tournaments: [{ type: 'individual' }],
       extras: [{ type: 'textarea', label: 'Poznámka', modes: ['individual', 'team'] }],
       admins: [],
@@ -647,7 +654,7 @@
               <span class="hint">Formulář je dostupný jen ve stavu „přihlašování otevřeno“.</span></label>
             <label>Barva v přehledu<select name="group"><option value="">výchozí</option>${options(R.GROUP_LABELS, ev.group || '')}</select>
               <span class="hint">podle značení termínového kalendáře</span></label>
-            <label>Druh akce<select name="kind">${options(R.EVENT_KINDS, ev.kind || 'event')}</select>
+            <label>Druh akce<select name="kind" ${me.role === 'organizer' && ev.kind !== 'club' ? 'disabled title="Akce klubové sekce zakládá klubový admin."' : ''}>${options(R.EVENT_KINDS, ev.kind || 'event')}</select>
               <span class="hint club-only">Není v přehledu akcí, odkaz rozešlete členům. Turnaje mají vlastní datum, místo a uzávěrku.</span></label>
             <label>Začátek <span class="req">*</span><input type="date" name="dateFrom" value="${esc(ev.dateFrom || '')}"></label>
             <label>Konec<input type="date" name="dateTo" value="${esc(ev.dateTo || '')}"></label>
@@ -950,7 +957,7 @@
     const listUrl = `seznam.html?akce=${encodeURIComponent(ev.slug)}`;
     const canOpen = ev.status !== 'otevreno';
     app.innerHTML = `
-      <p class="back small"><a href="#/">← Všechny akce</a></p>
+      <p class="back small"><a href="${ev.kind === 'club' ? '#/klub' : '#/'}">← ${ev.kind === 'club' ? 'Klubová sekce' : 'Pořadatelská sekce'}</a></p>
       <div class="page-head">
         <div>
           <h1>${esc(ev.name)}</h1>
@@ -1991,10 +1998,17 @@
   }
 
   function renderUsers(users) {
-    const roleOpts = { organizer: 'pořadatel (jen své akce)', superadmin: 'hlavní správce (vše)' };
+    const roleOpts = {
+      organizer: 'pořadatel (pořadatelská sekce – své akce)',
+      clubadmin: 'klubový admin (celá klubová sekce + své akce)',
+      superadmin: 'hlavní správce (vše)',
+    };
     app.innerHTML = `
       <h1>Správci</h1>
-      <p class="muted">Kdo se může přihlásit do administrace. Pořadatel vidí jen akce, které založil nebo u kterých je uveden jako správce.</p>
+      <p class="muted">Kdo se může přihlásit do administrace.
+        <strong>Pořadatel</strong> vidí v pořadatelské sekci akce, které založil nebo u kterých je uveden jako správce.
+        <strong>Klubový admin</strong> má navíc plný přístup k celé klubové sekci (otevírání přihlašování, přihlášky, exporty).
+        <strong>Hlavní správce</strong> vidí vše a spravuje správce.</p>
       <div class="card table-wrap"><table class="admin-table">
         <thead><tr><th>E-mail (Google účet)</th><th>Jméno</th><th>Klub</th><th>Role</th><th>Aktivní</th><th></th></tr></thead>
         <tbody>${users.map((u) => `<tr data-email="${esc(u.email)}">
@@ -2050,7 +2064,8 @@
     if (dialog.open) dialog.close();
     document.querySelectorAll('#nav a[href^="#"]').forEach((a) => {
       const target = a.getAttribute('href').slice(1);
-      const on = target === '/' ? !h.startsWith('/spravci') : h.startsWith(target);
+      const inClub = h.startsWith('/klub') || h === '/akce/nova-klub' || (current && current.event && current.event.kind === 'club' && h.startsWith('/akce/'));
+      const on = target === '/' ? !h.startsWith('/spravci') && !inClub : target === '/klub' ? inClub : h.startsWith(target);
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     document.body.classList.remove('print-receipts');
@@ -2060,8 +2075,10 @@
         updateBar();
       }
       let m;
-      if (h === '/') await viewEvents();
+      if (h === '/') await viewEvents('events');
+      else if (h === '/klub') await viewEvents('club');
       else if (h === '/akce/nova') await viewEditor(null);
+      else if (h === '/akce/nova-klub') await viewEditor(null, { kind: 'club' });
       else if ((m = h.match(/^\/akce\/([^/]+)\/upravit$/))) await viewEditor(m[1]);
       else if ((m = h.match(/^\/akce\/([^/]+)\/platby$/))) await viewPayments(m[1]);
       else if ((m = h.match(/^\/akce\/([^/]+)\/prezence(?:\/([a-z]+))?$/))) await viewPresence(m[1], m[2]);

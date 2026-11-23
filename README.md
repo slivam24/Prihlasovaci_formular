@@ -47,7 +47,10 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
   e-maily a poznámky se 12 měsíců po akci automaticky mažou,
 - **import akce z propozic přes AI**: tlačítko „Importovat z propozic (AI)“ zkopíruje zadání pro ChatGPT / Clauda,
   odpověď (JSON) se vloží zpět a akce se otevře vyplněná v editoru ke kontrole (formát a převod: `docs/js/import.js`),
-- **správci**: hlavní správce přidává pořadatele z dalších klubů, ti vidí jen své akce.
+- **dvě sekce administrace**: *Pořadatelská sekce* (turnaje, které pořádáte – veřejné na úvodní stránce) a *Klubová sekce*
+  (turnaje z kalendáře, na které se členové hlásí klubu – `klub.html`),
+- **role správců**: *hlavní správce* (vše, spravuje správce), *pořadatel* (pořadatelská sekce – akce, které založil nebo
+  u kterých je uveden), *klubový admin* (celá klubová sekce: otevírání přihlašování, přihlášky, exporty; plus vlastní akce).
 - **klubová sekce** (Druh akce: klubová sekce): hráči se hlásí klubu na turnaje z kalendáře, klub pak posílá hromadnou
   přihlášku. Není v přehledu akcí (odkaz se rozešle členům), každý turnaj má vlastní datum, místo, klubovou uzávěrku
   a propozice; turnaj se po uzávěrce zavře, proběhlé se nenabízejí. U turnaje je export **pro pořadatele** (Excel
@@ -56,7 +59,7 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - **klubová sekce** (`klub.html`, odkaz v patičce úvodní stránky): přehled jen pro klub ve stejném vzhledu jako úvodní
   stránka – každá soutěž termínového kalendáře je samostatná akce (druh „klubová sekce“), včetně dlouhodobých soutěží.
   U akce stav: *přihlašování otevřeno* (tlačítko Přihlásit se), *výpravu nepořádáme*, *dlouhodobá soutěž*; filtry, mřížka.
-  Správce přepíná přihlašování v administraci (záložka **Klubová sekce**) – při otevření zadá klubovou uzávěrku
+  Klubový admin přepíná přihlašování v administraci (sekce **Klubová sekce**) – při otevření zadá klubovou uzávěrku
   (výchozí 2 dny před), tlačítkem Upravit doplní poznámku, propozice a kategorie.
   Data ÚKŠS 2026/2027: `podklady/klubovy_kalendar_2026_2027.json` (založí se samy, viz `apps-script/KlubovyKalendar.gs`).
 - **barvy akcí** podle značení termínového kalendáře (krajské, republikové, mládež, mládež ŠSČR, ostatní) – v přehledech

@@ -58,7 +58,8 @@ const EVENT_STATUSES = ['koncept', 'otevreno', 'uzavreno', 'archiv'];
 const TOURNAMENT_TYPES = ['individual', 'team'];
 const EXTRA_TYPES = ['checkboxes', 'select', 'quantity', 'text', 'textarea'];
 const CHOICE_TYPES = ['checkboxes', 'select', 'quantity'];
-const ROLES = ['superadmin', 'organizer'];
+// superadmin = vše; organizer = pořadatelská sekce (své akce); clubadmin = celá klubová sekce + své akce
+const ROLES = ['superadmin', 'organizer', 'clubadmin'];
 const CANCELLED = 'zrušeno';
 const RECEIPT_CANCELLED = 'stornováno';
 const FEE_RULE_TYPES = ['women', 'youth', 'senior', 'titles', 'rating'];
@@ -80,12 +81,17 @@ const YES = 'ANO';
 // Web app
 // =====================================================================
 
+/** Jednorázové kroky (založení / úpravy klubového kalendáře) – po provedení je hlídá vlastnost skriptu. */
+function runOneTimeSteps_() {
+  maybeSeedClubCalendar_();
+  maybeMigrateClubCalendar_();
+  maybeSplitClubCalendar_();
+}
+
 function doGet(e) {
   const p = (e && e.parameter) || {};
   return respond_(() => {
-    maybeSeedClubCalendar_();
-    maybeMigrateClubCalendar_();
-    maybeSplitClubCalendar_();
+    runOneTimeSteps_();
     // klubové sekce nejsou v přehledu akcí – jsou dostupné jen přes odkaz
     // klubová sekce má vlastní přehled (klub.html, ?kind=club), v hlavním přehledu není
     if (p.action === 'events') {
@@ -113,6 +119,7 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: 'Neplatný požadavek.' });
   }
+  runOneTimeSteps_();
   return respond_(() => {
     const action = String(body.action || '');
     if (action === 'register') return withLock_(() => register_(body, null));
@@ -419,7 +426,8 @@ function sanitizeEvent_(input, existingEvents, currentId) {
       dateFrom: tDateFrom,
       dateTo: tDateTo,
       place: clean_(t.place, 150),
-      deadline: cleanDate_(t.deadline) || (input.kind === 'club' ? cleanDate_(input.deadline) : ''),
+      // klubová sekce: nový turnaj bez uzávěrky → 2 dny před začátkem (dá se změnit i smazat)
+      deadline: cleanDate_(t.deadline) || (input.kind === 'club' ? cleanDate_(input.deadline) || (!t.id && tDateFrom ? addDays_(tDateFrom, -2) : '') : ''),
       infoUrl: /^https?:\/\//.test(String(t.infoUrl || '')) ? clean_(t.infoUrl, 300) : '',
       signup: SIGNUP_TYPES.indexOf(t.signup) >= 0 ? t.signup : 'open',
       note: clean_(t.note, 300),
@@ -1382,6 +1390,7 @@ function authenticate_(idToken) {
 }
 
 function canEdit_(user, ev) {
+  if (user.role === 'clubadmin' && ev.kind === 'club') return true;
   return user.role === 'superadmin' || ev.admins.indexOf(user.email) >= 0 || ev.createdBy === user.email;
 }
 
@@ -1435,11 +1444,17 @@ const ADMIN_ACTIONS = {
       if (input.id && !existing) throw userError_('Akce nebyla nalezena.');
       if (existing) assertCanEdit_(user, existing);
       const clean = sanitizeEvent_(input, events, existing ? existing.id : null);
+      // klubovou sekci spravuje klubový admin (a hlavní správce); pořadatel ji zakládat nesmí
+      const mayClub = user.role === 'superadmin' || user.role === 'clubadmin' || (existing && existing.kind === 'club');
+      if (clean.event.kind === 'club' && !mayClub) {
+        throw userError_('Akce klubové sekce zakládá klubový admin nebo hlavní správce.', 'forbidden');
+      }
       const now = new Date().toISOString();
 
       let evRow;
       if (existing) {
-        if (user.role !== 'superadmin' && existing.createdBy !== user.email) {
+        const fullClub = user.role === 'clubadmin' && existing.kind === 'club';
+        if (user.role !== 'superadmin' && existing.createdBy !== user.email && !fullClub) {
           clean.event.admins = existing.admins; // správce akce smí měnit jen zakladatel a hlavní správce
         }
         evRow = table_('events').rows.find((r) => r._row === existing._row);

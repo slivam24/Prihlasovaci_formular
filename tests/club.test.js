@@ -214,3 +214,27 @@ test('rozdělení kalendáře na samostatné akce i s přihláškami', () => {
   const detail = gas.post({ action: 'admin.event', idToken: fakeToken(OWNER), id: gpEv.id });
   assert.equal(detail.registrations.length, 1);
 });
+
+test('role klubový admin: celá klubová sekce, z pořadatelské jen své akce', () => {
+  const gas = createGas({ owner: OWNER });
+  const as = (who) => (action, body) => gas.post(Object.assign({ action: 'admin.' + action, idToken: fakeToken(who) }, body));
+  const owner = as(OWNER);
+  assert.equal(owner('saveUser', { user: { email: 'klub@k.cz', role: 'clubadmin' } }).ok, true);
+  assert.equal(owner('saveUser', { user: { email: 'porad@k.cz', role: 'organizer' } }).ok, true);
+  const club = owner('saveEvent', { event: { name: 'GP', kind: 'club', status: 'otevreno', dateFrom: day(30), tournaments: [{ name: 'GP' }] } }).event;
+  const fest = owner('saveEvent', { event: { name: 'Festival', status: 'otevreno', dateFrom: day(60), tournaments: [{ name: 'Open' }] } }).event;
+  const ca = as('klub@k.cz');
+  assert.deepEqual(ca('events', {}).events.map((e) => e.name), ['GP'], 'klubový admin vidí klubovou sekci, cizí festival ne');
+  assert.equal(ca('event', { id: club.id }).ok, true);
+  assert.equal(ca('event', { id: fest.id }).ok, false);
+  assert.equal(ca('setTournamentSignup', { eventId: club.id, tournamentId: club.tournaments[0].id, signup: 'none' }).ok, true);
+  const own = ca('saveEvent', { event: { name: 'Klubový turnaj', kind: 'club', dateFrom: day(10), tournaments: [{ name: 'T' }] } });
+  assert.equal(own.ok, true, 'zakládá akce klubové sekce');
+  assert.equal(ca('saveEvent', { event: { name: 'Vlastní open', dateFrom: day(90), tournaments: [{ name: 'O' }] } }).ok, true, 'i vlastní turnaj');
+  const po = as('porad@k.cz');
+  assert.equal(po('event', { id: club.id }).ok, false, 'pořadatel klubovou sekci nevidí');
+  assert.match(po('saveEvent', { event: { name: 'X', kind: 'club', dateFrom: day(10), tournaments: [{ name: 'T' }] } }).error, /klubový admin/);
+  // klubový admin smí měnit správce akce klubové sekce, kterou nezaložil
+  const upd = ca('saveEvent', { event: Object.assign({}, club, { admins: 'trener@k.cz' }) });
+  assert.deepEqual(upd.event.admins, ['trener@k.cz']);
+});
