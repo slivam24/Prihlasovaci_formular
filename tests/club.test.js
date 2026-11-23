@@ -238,3 +238,24 @@ test('role klubový admin: celá klubová sekce, z pořadatelské jen své akce'
   const upd = ca('saveEvent', { event: Object.assign({}, club, { admins: 'trener@k.cz' }) });
   assert.deepEqual(upd.event.admins, ['trener@k.cz']);
 });
+
+test('turnaj je jen v jedné sekci: pořádaný turnaj se v klubové sekci neukazuje', () => {
+  const gas = createGas({ owner: OWNER, seed: true });
+  gas.get({ action: 'events' }); // založí klubový kalendář
+  const admin = (action, body) => gas.post(Object.assign({ action: 'admin.' + action, idToken: fakeToken(OWNER) }, body));
+  const before = gas.get({ action: 'events', kind: 'club' }).events;
+  assert.ok(before.some((e) => e.name === 'Grand Prix ČR 2026/2027 v rapid šachu'));
+  // klub pořádá festival v Chlumci 8.–9. 5. 2027 (GP + KP v blesku)
+  const fest = admin('saveEvent', { event: { name: '33. Šachový festival Chlumec 2027', place: 'Velký sál Domu kultury Chlumec, Muchova 267',
+    dateFrom: '2027-05-08', dateTo: '2027-05-09', status: 'otevreno', tournaments: [{ name: 'Grand Prix ČR' }, { name: 'Blesk' }] } }).event;
+  const after = gas.get({ action: 'events', kind: 'club' }).events;
+  assert.equal(before.length - after.length, 2, 'GP i KP v blesku z klubové sekce zmizí');
+  assert.ok(!after.some((e) => e.dateFrom === '2027-05-08' || e.dateFrom === '2027-05-09'));
+  assert.ok(after.some((e) => e.name === 'VC Ústí – turnaj čtyřčlenných družstev'), 'jiný den v Chlumci zůstává');
+  assert.equal(gas.get({ action: 'events' }).events.filter((e) => e.id === fest.id).length, 1, 'festival jen v hlavním přehledu');
+  const adm = admin('events', {}).events.filter((e) => e.coveredBy);
+  assert.deepEqual(adm.map((e) => e.coveredBy.id), [fest.id, fest.id]);
+  // rozpracovaný festival klubovou sekci neskrývá
+  admin('saveEvent', { event: Object.assign({}, fest, { status: 'koncept' }) });
+  assert.equal(gas.get({ action: 'events', kind: 'club' }).events.length, before.length);
+});
