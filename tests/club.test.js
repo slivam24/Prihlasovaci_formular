@@ -115,3 +115,18 @@ test('klubový kalendář 2026/2027 (podklady) projde importem a uložením', ()
   assert.equal(gas.post({ action: 'register', slug: res.event.slug, mode: 'individual', email: 'a@b.cz', player: Object.assign({}, p, { id: 2, surname: 'Velký' }), tournaments: [none.id] }).ok, true);
   assert.match(gas.post({ action: 'admin.setTournamentSignup', idToken: fakeToken(OWNER), eventId: res.event.id, tournamentId: none.id, signup: 'open', deadline: '2099-01-01' }).error, /po začátku/);
 });
+
+test('jednorázové založení klubového kalendáře při prvním požadavku', () => {
+  const gas = createGas({ owner: OWNER, seed: true });
+  assert.equal(gas.get({ action: 'events' }).ok, true);
+  const ev = gas.get({ action: 'event', slug: 'kalendar-2026-2027' }).event;
+  assert.equal(ev.kind, 'club');
+  assert.equal(ev.status, 'otevreno');
+  assert.equal(ev.tournaments.length, 121);
+  assert.ok(gas.props.SEED_KALENDAR_2026, 'poznamenáno');
+  // podruhé už nic nezakládá
+  gas.props.SEED_KALENDAR_2026 = '';
+  gas.get({ action: 'events' });
+  const list = gas.post({ action: 'admin.events', idToken: fakeToken(OWNER) }).events;
+  assert.equal(list.filter((e) => e.slug.startsWith('kalendar-2026-2027')).length, 1);
+});

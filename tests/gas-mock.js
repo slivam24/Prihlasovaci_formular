@@ -61,7 +61,9 @@ class FakeSheet {
 function createGas(opts) {
   opts = opts || {};
   const sheets = {};
-  const props = Object.assign({ GOOGLE_CLIENT_ID: CLIENT_ID, SITE_URL: 'http://localhost/' }, opts.props || {});
+  // jednorázové založení klubového kalendáře v testech vypnuté (opts.seed = true ho zapne)
+  const props = Object.assign({ GOOGLE_CLIENT_ID: CLIENT_ID, SITE_URL: 'http://localhost/' },
+    opts.seed ? {} : { SEED_KALENDAR_2026: 'test' }, opts.props || {});
   const cache = {};
   const mails = [];
   const mailQuota = { left: opts.mailQuota == null ? 100 : opts.mailQuota };
@@ -117,7 +119,10 @@ function createGas(opts) {
   };
 
   const ctx = vm.createContext(globals);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8'), ctx, { filename: 'Code.gs' });
+  // všechny soubory projektu Apps Script (sdílí jeden globální prostor)
+  const dir = path.join(__dirname, '../apps-script');
+  fs.readdirSync(dir).filter((f) => f.endsWith('.gs')).sort((a, b) => (a === 'Code.gs' ? -1 : b === 'Code.gs' ? 1 : a.localeCompare(b)))
+    .forEach((f) => vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f }));
   const reset = () => vm.runInContext('Object.keys(DB_CACHE_).forEach((k) => delete DB_CACHE_[k])', ctx);
 
   // hlavní správce jako po spuštění menu Nastavení

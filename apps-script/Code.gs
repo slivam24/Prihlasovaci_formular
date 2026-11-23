@@ -81,6 +81,7 @@ const YES = 'ANO';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   return respond_(() => {
+    maybeSeedClubCalendar_();
     // klubové sekce nejsou v přehledu akcí – jsou dostupné jen přes odkaz
     if (p.action === 'events') return { events: cachedPublicEvents_().filter((e) => e.kind !== 'club') };
     if (p.action === 'event') {
@@ -2019,6 +2020,7 @@ function onOpen() {
     .addItem('Nastavení', 'setup')
     .addItem('Zapnout zálohy a frontu e-mailů', 'enableJobs')
     .addItem('Zálohovat teď', 'backupNow')
+    .addItem('Založit klubový kalendář 2026/2027', 'createClubCalendar')
     .addItem('Založit ukázkovou akci (Chlumec 2026)', 'createSampleEvent')
     .addToUi();
 }
