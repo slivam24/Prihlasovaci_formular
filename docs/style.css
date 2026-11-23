@@ -573,3 +573,8 @@ section > .step-title { margin-bottom: 4px; }
 
 .finder-clubs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .finder-clubs .chip { text-align: left; }
+
+/* editor: pole jen pro klubovou sekci / jen pro běžnou akci */
+#event-form:not(.kind-club) .club-only { display: none; }
+#event-form.kind-club .event-only { display: none; }
+.kind-badge { background: var(--warn-soft); color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }

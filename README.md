@@ -47,6 +47,11 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - **import akce z propozic přes AI**: tlačítko „Importovat z propozic (AI)“ zkopíruje zadání pro ChatGPT / Clauda,
   odpověď (JSON) se vloží zpět a akce se otevře vyplněná v editoru ke kontrole (formát a převod: `docs/js/import.js`),
 - **správci**: hlavní správce přidává pořadatele z dalších klubů, ti vidí jen své akce.
+- **klubová sekce** (Druh akce: klubová sekce): hráči se hlásí klubu na turnaje z kalendáře, klub pak posílá hromadnou
+  přihlášku. Není v přehledu akcí (odkaz se rozešle členům), každý turnaj má vlastní datum, místo, klubovou uzávěrku
+  a propozice; turnaj se po uzávěrce zavře, proběhlé se nenabízejí. U turnaje je export **pro pořadatele** (Excel
+  a text do e-mailu) i pro Swiss-Manager. Plný přístup mají správci uvedení v poli „Správci klubové sekce“
+  (musí být v seznamu správců jako pořadatel).
 
 ```
 elo.miramal.com (LOK + rapid LOK) ──(GitHub Action, denně)──► data/players.json ──► našeptávač

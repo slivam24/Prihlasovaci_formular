@@ -20,8 +20,11 @@
   let teamCards = []; // družstva: { el, roster, uid }
   let teamSeq = 0;
 
-  const individualTournaments = () => ev.tournaments.filter((t) => t.type !== 'team');
-  const teamTournaments = () => ev.tournaments.filter((t) => t.type === 'team');
+  // klubová sekce: turnaje podle data, už skončené se nenabízejí
+  const isClub = () => ev && ev.kind === 'club';
+  const offered = () => (isClub() ? R.byDate(ev.tournaments.filter((t) => !R.tournamentPast(t))) : ev.tournaments);
+  const individualTournaments = () => offered().filter((t) => t.type !== 'team');
+  const teamTournaments = () => offered().filter((t) => t.type === 'team' && !(isClub() && R.tournamentClosed(t)));
   const tShort = (t) => t.short || t.name;
 
   // ---------- hlavička ----------
@@ -66,6 +69,7 @@
             <input type="checkbox" value="${esc(t.id)}">
             <span class="t-body">
               <span class="t-name">${esc(R.tournamentLabel(t))}</span>
+              ${tourInfo(t)}
               ${R.ruleText(t) ? `<span class="t-rule">${esc(R.ruleText(t))}</span>` : ''}
               <span class="t-fee small" hidden></span>
               <span class="t-block" hidden></span>
@@ -115,12 +119,21 @@
     updateSubmitLabel();
   }
 
+  /** Místo, klubová uzávěrka a propozice u turnaje s vlastním datem. */
+  function tourInfo(t) {
+    const parts = [];
+    if (t.place) parts.push(esc(t.place));
+    if (t.deadline) parts.push('přihlásit do ' + esc(R.formatDate(t.deadline)));
+    if (t.infoUrl) parts.push(`<a href="${esc(t.infoUrl)}" target="_blank" rel="noopener">propozice</a>`);
+    return parts.length ? `<span class="t-rule">${parts.join(' · ')}</span>` : '';
+  }
+
   function updateCard(card) {
     const p = card.picker.getValue();
     individualTournaments().forEach((t) => {
       const label = $(`.tournament[data-id="${CSS.escape(t.id)}"]`, card.el);
       const input = label.querySelector('input');
-      const block = R.eligibility(t, p);
+      const block = R.tournamentClosed(t) && isClub() ? 'už uzavřený (uzávěrka klubu proběhla)' : R.eligibility(t, p);
       input.disabled = !!block;
       if (block) input.checked = false;
       label.classList.toggle('disabled', !!block);

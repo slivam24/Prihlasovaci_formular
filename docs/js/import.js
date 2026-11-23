@@ -113,6 +113,7 @@ Pravidla:
 
     const event = {
       status: 'koncept',
+      kind: data.kind === 'club' ? 'club' : 'event',
       name: str(data.name, 150),
       place: str(data.place, 150),
       dateFrom: toDate(data.dateFrom, 'Začátek akce', warnings),
@@ -151,6 +152,14 @@ Pravidla:
         capacity: toInt(t.capacity, 1, 10000),
         rating: t.rating === 'rapid' ? 'rapid' : 'standard',
       };
+      // turnaje s vlastním datem (klubová sekce, kalendář)
+      if (t.dateFrom) {
+        tour.dateFrom = toDate(t.dateFrom, `Turnaj „${name}“ – začátek`, warnings);
+        tour.dateTo = t.dateTo ? toDate(t.dateTo, `Turnaj „${name}“ – konec`, warnings) : '';
+        tour.deadline = t.deadline ? toDate(t.deadline, `Turnaj „${name}“ – uzávěrka`, warnings) : '';
+        tour.place = str(t.place, 150);
+        tour.infoUrl = /^https?:\/\//.test(String(t.infoUrl || '')) ? str(t.infoUrl, 300) : '';
+      }
       const fee = parseFloat(String(t.fee == null ? '' : t.fee).replace(/[^\d.,]/g, '').replace(',', '.'));
       tour.fee = isNaN(fee) ? null : fee;
       tour.feeRules = type === 'team' || !Array.isArray(t.feeRules) ? [] : t.feeRules

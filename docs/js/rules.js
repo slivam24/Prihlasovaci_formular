@@ -65,8 +65,32 @@
   }
 
   function tournamentLabel(t) {
+    // turnaj s vlastním datem (klubová sekce): „8. 5. 2027 – Grand Prix…“, jinak „sobota – …“
+    if (t.dateFrom) return formatRange(t.dateFrom, t.dateTo) + ' – ' + t.name;
     return (t.day ? t.day + ' – ' : '') + t.name;
   }
+
+  /** Uzavřený turnaj: po vlastní uzávěrce (do konce dne), bez uzávěrky od dne začátku. */
+  function tournamentClosed(t, now) {
+    now = now || new Date();
+    if (t.deadline) return now > new Date(t.deadline + 'T23:59:59');
+    if (t.dateFrom) return now >= new Date(t.dateFrom + 'T00:00:00');
+    return false;
+  }
+
+  /** Turnaj už skončil (klubová sekce ho ve formuláři nenabízí). */
+  function tournamentPast(t, now) {
+    const end = t.dateTo || t.dateFrom;
+    return !!end && (now || new Date()) > new Date(end + 'T23:59:59');
+  }
+
+  /** Turnaje seřazené podle data (turnaje bez data na konci, v původním pořadí). */
+  function byDate(list) {
+    return list.map((t, i) => ({ t, i })).sort((a, b) =>
+      String(a.t.dateFrom || '9999').localeCompare(String(b.t.dateFrom || '9999')) || a.i - b.i).map((x) => x.t);
+  }
+
+  const EVENT_KINDS = { event: 'turnaj nebo festival', club: 'klubová sekce (přihlášky do klubu, jen přes odkaz)' };
 
   const STATUS_LABELS = {
     koncept: 'rozpracovaná',
@@ -198,7 +222,7 @@
     plural, teamSize,
     formatMoney, optionPrice, extraPrice, extraText, extrasTotal,
     norm, eventYear, isClosed, ruleText, eligibility, ratingWarning, samePlayer,
-    tournamentLabel, STATUS_LABELS, formatDate, formatRange,
+    tournamentLabel, tournamentClosed, tournamentPast, byDate, EVENT_KINDS, STATUS_LABELS, formatDate, formatRange,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.Rules = api;

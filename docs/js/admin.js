@@ -225,7 +225,7 @@
     me = data.user;
     updateBar();
     const rows = data.events.map((ev) => `<tr>
-      <td><a href="#/akce/${esc(ev.id)}"><strong>${esc(ev.name)}</strong></a>
+      <td><a href="#/akce/${esc(ev.id)}"><strong>${esc(ev.name)}</strong></a>${ev.kind === 'club' ? ' <span class="badge kind-badge">klubová sekce</span>' : ''}
         <div class="small muted">${esc(ev.tournaments.map((t) => `${t.short || t.name} (${t.count})`).join(' · '))}</div></td>
       <td>${esc(R.formatRange(ev.dateFrom, ev.dateTo))}</td>
       <td>${statusBadge(ev.status)}</td>
@@ -397,7 +397,12 @@
       <div class="grid grid-3">
         <label class="wide">Název turnaje <span class="req">*</span><input data-f="name" value="${esc(t.name || '')}" placeholder="např. Open rapid – Grand Prix ČR"></label>
         <label>Krátký název<input data-f="short" value="${esc(t.short || '')}" placeholder="např. Rapid"><span class="hint">do přehledů a exportů</span></label>
-        <label>Den<input data-f="day" value="${esc(t.day || '')}" placeholder="např. sobota"></label>
+        <label class="event-only">Den<input data-f="day" value="${esc(t.day || '')}" placeholder="např. sobota"></label>
+        <label class="club-only">Datum od<input type="date" data-f="dateFrom" value="${esc(t.dateFrom || '')}"></label>
+        <label class="club-only">Datum do<input type="date" data-f="dateTo" value="${esc(t.dateTo || '')}"><span class="hint">u jednodenního prázdné</span></label>
+        <label class="club-only">Místo<input data-f="place" value="${esc(t.place || '')}" placeholder="např. Teplice"></label>
+        <label class="club-only">Klubová uzávěrka<input type="date" data-f="deadline" value="${esc(t.deadline || '')}"><span class="hint">do kdy se hlásit klubu; prázdné = do začátku turnaje</span></label>
+        <label class="club-only wide">Propozice turnaje<input type="url" data-f="infoUrl" value="${esc(t.infoUrl || '')}" placeholder="https://"></label>
         <label>Typ<select data-f="type">${options(TYPE_LABELS, t.type)}</select></label>
         <label>Rating<select data-f="rating">${options(R.RATING_LABELS, t.rating || 'standard')}</select>
           <span class="hint">ELO ČR a FIDE pro nasazení, export a slevy</span></label>
@@ -570,6 +575,8 @@
             <label>Místo<input name="place" value="${esc(ev.place || '')}"></label>
             <label>Stav<select name="status">${options(statusOpts, ev.status)}</select>
               <span class="hint">Formulář je dostupný jen ve stavu „přihlašování otevřeno“.</span></label>
+            <label>Druh akce<select name="kind">${options(R.EVENT_KINDS, ev.kind || 'event')}</select>
+              <span class="hint club-only">Není v přehledu akcí, odkaz rozešlete členům. Turnaje mají vlastní datum, místo a uzávěrku.</span></label>
             <label>Začátek <span class="req">*</span><input type="date" name="dateFrom" value="${esc(ev.dateFrom || '')}"></label>
             <label>Konec<input type="date" name="dateTo" value="${esc(ev.dateTo || '')}"></label>
             <label>Uzávěrka přihlášek<input type="date" name="deadline" value="${esc(ev.deadline || '')}">
@@ -580,8 +587,9 @@
             <label class="wide">Text pod nadpisem formuláře<textarea name="intro" rows="2">${esc(ev.intro || '')}</textarea></label>
             <label>Kontaktní e-mail<input name="contactEmail" type="email" value="${esc(ev.contactEmail || '')}">
               <span class="hint">Sem půjdou odpovědi na potvrzovací e-maily.</span></label>
-            <label>Další správci akce<textarea name="admins" rows="2" ${isOwner ? '' : 'disabled'}>${esc((ev.admins || []).join(', '))}</textarea>
-              <span class="hint">Google účty oddělené čárkou. Musí být zároveň v seznamu správců.</span></label>
+            <label><span class="event-only">Další správci akce</span><span class="club-only">Správci klubové sekce (plný přístup)</span>
+              <textarea name="admins" rows="2" ${isOwner ? '' : 'disabled'}>${esc((ev.admins || []).join(', '))}</textarea>
+              <span class="hint">Google účty oddělené čárkou. Musí být zároveň v seznamu správců (menu Správci, role pořadatel).</span></label>
           </div>
         </section>
 
@@ -633,6 +641,11 @@
     ev.tournaments.forEach((t) => addCard(tours, tourCard(t)));
     (ev.extras || []).forEach((x) => addCard(extras, extraCard(x)));
     $('#add-tour').addEventListener('click', () => { addCard(tours, tourCard()); $('[data-f="name"]', tours.lastElementChild).focus(); });
+    // druh akce: klubová sekce ukáže u turnajů datum, místo a uzávěrku
+    const form = $('#event-form');
+    const syncKind = () => form.classList.toggle('kind-club', form.kind.value === 'club');
+    form.kind.addEventListener('change', syncKind);
+    syncKind();
     $('#add-extra').addEventListener('click', () => { addCard(extras, extraCard()); $('[data-f="label"]', extras.lastElementChild).focus(); });
     $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
       addCard(extras, extraCard(JSON.parse(JSON.stringify(EXTRA_PRESETS[b.dataset.preset]))));
@@ -646,7 +659,7 @@
       const val = (card, field) => { const el = $(`[data-f="${field}"]`, card); return el ? el.value.trim() : ''; };
       const event = {
         id: id || undefined,
-        name: f.name.value, place: f.place.value, status: f.status.value,
+        name: f.name.value, place: f.place.value, status: f.status.value, kind: f.kind.value,
         dateFrom: f.dateFrom.value, dateTo: f.dateTo.value, deadline: f.deadline.value,
         slug: f.slug.value, infoUrl: f.infoUrl.value, intro: f.intro.value,
         contactEmail: f.contactEmail.value, admins: f.admins.value,
@@ -657,6 +670,7 @@
         tournaments: $$('.tour-card', tours).map((c) => ({
           id: c.dataset.id || undefined,
           name: val(c, 'name'), short: val(c, 'short'), day: val(c, 'day'), type: val(c, 'type'), rating: val(c, 'rating'),
+          dateFrom: val(c, 'dateFrom'), dateTo: val(c, 'dateTo'), place: val(c, 'place'), deadline: val(c, 'deadline'), infoUrl: val(c, 'infoUrl'),
           minBirthYear: val(c, 'minBirthYear'), maxBirthYear: val(c, 'maxBirthYear'),
           warnMaxRating: val(c, 'warnMaxRating'), capacity: val(c, 'capacity'),
           boards: val(c, 'boards'), reserves: val(c, 'reserves'), fee: val(c, 'fee'),
@@ -844,6 +858,7 @@
 
   function renderEvent() {
     const ev = current.event;
+    const tourList = ev.kind === 'club' ? R.byDate(ev.tournaments) : ev.tournaments;
     const publicUrl = `prihlaska.html?akce=${encodeURIComponent(ev.slug)}`;
     const listUrl = `seznam.html?akce=${encodeURIComponent(ev.slug)}`;
     const canOpen = ev.status !== 'otevreno';
@@ -871,7 +886,9 @@
       ${ev.status === 'koncept' ? '<p class="notice-inline">Akce je rozpracovaná – formulář ani seznam zatím nejsou veřejné.</p>' : ''}
       ${systemNotice(current.system)}
 
-      ${ev.tournaments.length > 1 ? `<nav class="jump" aria-label="Turnaje akce"><span class="small muted">Přejít na:</span>${ev.tournaments.map((t) =>
+      ${ev.kind === 'club' ? `<p class="small muted">Klubová sekce – není v přehledu akcí, odkaz na formulář rozešlete členům.
+        U každého turnaje je export pro pořadatele (Excel nebo text do e-mailu).</p>` : ''}
+      ${tourList.length > 1 ? `<nav class="jump" aria-label="Turnaje akce"><span class="small muted">Přejít na:</span>${tourList.map((t) =>
         `<button type="button" class="chip" data-jump="t-${esc(t.id)}">${esc(t.short || t.name)} <strong>${t.count}</strong></button>`).join('')}</nav>` : ''}
 
       <div class="toolbar">
@@ -881,13 +898,22 @@
         <label class="check"><input type="checkbox" id="show-cancelled" ${showCancelled ? 'checked' : ''}> zobrazit zrušené</label>
       </div>
 
-      ${ev.tournaments.map((t) => {
+      ${tourList.map((t) => {
         const cap = t.capacity ? ` / ${t.capacity}` : '';
+        const state = !t.dateFrom ? '' : R.tournamentPast(t) ? '<span class="status">proběhl</span>'
+          : R.tournamentClosed(t) ? '<span class="status status-koncept">uzávěrka proběhla – poslat pořadateli</span>'
+            : '<span class="status status-otevreno">přihlašování otevřeno</span>';
+        const info = [t.place ? esc(t.place) : '', t.deadline ? 'klubová uzávěrka ' + esc(R.formatDate(t.deadline)) : '',
+          t.infoUrl ? `<a href="${esc(t.infoUrl)}" target="_blank" rel="noopener">propozice ↗</a>` : ''].filter(Boolean).join(' · ');
         return `<section class="card" id="t-${esc(t.id)}">
           <div class="page-head">
-            <div><h2>${esc(R.tournamentLabel(t))}</h2>
+            <div><h2>${esc(R.tournamentLabel(t))} ${state}</h2>
+              ${info ? `<p class="small">${info}</p>` : ''}
               <p class="muted small">${t.type === 'team' ? 'Družstev' : 'Hráčů'}: <strong>${t.count}${cap}</strong>${R.ruleText(t) ? ' · ' + esc(R.ruleText(t)) : ''}</p></div>
             <div class="actions">
+              ${ev.kind === 'club' ? `<span class="small muted">Pro pořadatele:</span>
+              <button type="button" class="button small-btn" data-org-xlsx="${esc(t.id)}">Excel</button>
+              <button type="button" class="button small-btn" data-org-text="${esc(t.id)}">Text do e-mailu</button>` : ''}
               <span class="small muted">Swiss-Manager:</span>
               ${t.type === 'team' ? `
               <button type="button" class="button small-btn" data-export-txt="${esc(t.id)}" data-part="teams" title="1. krok importu do SM">Družstva .TXT</button>
@@ -926,6 +952,8 @@
     $('#copy-event').addEventListener('click', () => copyEventDialog(ev));
     $('#export-all').addEventListener('click', exportAll);
     $('#recalc-ratings').addEventListener('click', recalcRatingsDialog);
+    $$('[data-org-xlsx]').forEach((b) => b.addEventListener('click', () => exportForOrganizer(b.dataset.orgXlsx)));
+    $$('[data-org-text]').forEach((b) => b.addEventListener('click', () => organizerTextDialog(b.dataset.orgText)));
     $$('[data-export-txt]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportTxt, 'txt', b.dataset.part)));
     $$('[data-export-xlsx]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportXlsx, 'xlsx')));
     $$('[data-toggle]').forEach((b) => b.addEventListener('click', () => toggleRegistration(b.dataset.toggle)));
@@ -1033,6 +1061,77 @@
    * Přepočet ratingu přihlášených podle aktuální listiny: u rapid turnajů rapid LOK, jinak klasická LOK.
    * Týká se jen hráčů z LOK (podle ID ČR); nejdřív ukáže náhled změn.
    */
+  // ---- klubová sekce: hromadná přihláška za klub pro pořadatele turnaje ----
+
+  function clubName() {
+    const ev = current.event;
+    return (ev.issuer && ev.issuer.name) || ev.name;
+  }
+
+  /** Přihlášení do turnaje (bez zrušených), abecedně; u družstev podle družstva a šachovnice. */
+  function organizerRows(t) {
+    const regs = current.registrations.filter((r) => r.tournamentId === t.id && r.status !== 'zrušeno' && r.surname);
+    return regs.sort((a, b) => (t.type === 'team'
+      ? String(a.team).localeCompare(String(b.team), 'cs') || (Number(a.board) || 0) - (Number(b.board) || 0)
+      : String(a.surname).localeCompare(String(b.surname), 'cs') || String(a.firstName).localeCompare(String(b.firstName), 'cs')));
+  }
+
+  async function exportForOrganizer(id) {
+    const t = current.event.tournaments.find((x) => x.id === id);
+    const rows = organizerRows(t);
+    const team = t.type === 'team';
+    const head = ['Č.', 'Příjmení', 'Jméno', 'Ročník', 'Pohlaví', 'Klub', 'ID ČR', 'FIDE ID', 'ELO ČR', 'FIDE', 'Titul']
+      .concat(team ? ['Družstvo', 'Šachovnice'] : []);
+    const data = rows.map((r, i) => [i + 1, r.surname, r.firstName, r.year, r.sex === 'F' ? 'ž' : 'm', r.club, r.idCr || '', r.fideId || '',
+      r.rn || '', r.rf || '', r.title || ''].concat(team ? [r.team, r.board] : []));
+    const title = [[`Přihláška za klub: ${clubName()}`], [`Turnaj: ${R.tournamentLabel(t)}${t.place ? ', ' + t.place : ''}`],
+      [`Počet hráčů: ${rows.length}`], current.event.contactEmail ? [`Kontakt: ${current.event.contactEmail}`] : [], []];
+    const contacts = [['Příjmení', 'Jméno', 'E-mail přihlášky', 'Přihlášeno', 'Doplňky / poznámka', 'Poznámka pořadatele']]
+      .concat(rows.map((r) => [r.surname, r.firstName, r.email, r.createdAt ? new Date(r.createdAt).toLocaleString('cs-CZ') : '', extrasText(r), r.orgNote || '']));
+    try {
+      await downloadXlsx(`${fileSafe(clubName())}_${fileSafe(t.short || t.name)}_prihlaska.xlsx`, [
+        { name: 'Přihláška', rows: title.concat([head], data) },
+        { name: 'Kontakty (interní)', rows: contacts },
+      ]);
+    } catch (e) { alert(e.message); }
+  }
+
+  function organizerText(t) {
+    const rows = organizerRows(t);
+    const lines = [
+      'Dobrý den,',
+      '',
+      `za klub ${clubName()} přihlašujeme na turnaj ${t.name}${t.dateFrom ? ' (' + R.formatRange(t.dateFrom, t.dateTo) + (t.place ? ', ' + t.place : '') + ')' : ''} tyto hráče:`,
+      '',
+    ];
+    let lastTeam = null;
+    rows.forEach((r, i) => {
+      if (t.type === 'team' && r.team !== lastTeam) { lines.push(`Družstvo ${r.team}:`); lastTeam = r.team; }
+      const ids = [r.idCr ? 'ID ČR ' + r.idCr : '', r.fideId ? 'FIDE ID ' + r.fideId : '', r.rn ? 'ELO ČR ' + r.rn : '', r.rf ? 'FIDE ' + r.rf : '']
+        .filter(Boolean).join(', ');
+      lines.push(`${t.type === 'team' ? '  ' + r.board : i + 1}. ${r.surname} ${r.firstName}${r.title ? ' ' + r.title : ''}, ${r.year || '?'}${r.club ? ', ' + r.club : ''}${ids ? ' (' + ids + ')' : ''}`);
+    });
+    lines.push('', `Celkem ${R.plural(rows.length, 'hráč', 'hráči', 'hráčů')}.`, '', 'Děkujeme a těšíme se,', clubName());
+    if (current.event.contactEmail) lines.push(current.event.contactEmail);
+    return lines.join('\n');
+  }
+
+  function organizerTextDialog(id) {
+    const t = current.event.tournaments.find((x) => x.id === id);
+    openDialog(`<div class="dialog-form">
+      <h2>Přihláška za klub – ${esc(t.short || t.name)}</h2>
+      <p class="small muted">Text zkopírujte do e-mailu pořadateli. Před odesláním ho můžete upravit.</p>
+      <textarea id="org-text" rows="16" style="width:100%">${esc(organizerText(t))}</textarea>
+      <p class="actions"><button type="button" class="primary" id="org-copy">Zkopírovat</button><button type="button" data-close>Zavřít</button></p>
+    </div>`, (d) => {
+      $('#org-copy', d).addEventListener('click', () => {
+        const text = $('#org-text', d).value;
+        navigator.clipboard.writeText(text).then(() => { $('#org-copy', d).textContent = 'Zkopírováno ✓'; },
+          () => { $('#org-text', d).select(); document.execCommand('copy'); $('#org-copy', d).textContent = 'Zkopírováno ✓'; });
+      });
+    });
+  }
+
   async function recalcRatingsDialog() {
     const ev = current.event;
     let db;
