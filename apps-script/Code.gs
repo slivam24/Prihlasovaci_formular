@@ -96,9 +96,7 @@ function doGet(e) {
     // klubová sekce má vlastní přehled (klub.html, ?kind=club), v hlavním přehledu není
     if (p.action === 'events') {
       const club = p.kind === 'club';
-      const all = cachedPublicEvents_();
-      const covered = club ? coveredClubEvents_(all) : {};
-      return { events: all.filter((e) => (e.kind === 'club') === club && !covered[e.id]) };
+      return { events: cachedPublicEvents_().filter((e) => (e.kind === 'club') === club) };
     }
     if (p.action === 'event') {
       const hit = cachedPublicEvents_().find((e) => e.slug === String(p.slug || ''));
@@ -359,31 +357,6 @@ function cachedPublicEvents_() {
 
 function clearPublicCache_() {
   bumpVersion_();
-}
-
-/**
- * Turnaj má být vidět jen v jedné sekci: akce klubové sekce, kterou klub sám pořádá (v pořadatelské sekci je
- * zveřejněná akce ve stejný den na stejném místě), se v klubové sekci nezobrazuje.
- * Vrací { id klubové akce: pořadatelská akce }.
- */
-const GENERIC_PLACES_ = ['konkurz', 'neurceno', 'rozpisu', 'skupin', 'okresech', 'predb', 'zajem'];
-
-function coveredClubEvents_(events) {
-  const organized = events.filter((e) => e.kind !== 'club' && (e.status === 'otevreno' || e.status === 'uzavreno'));
-  const out = {};
-  if (!organized.length) return out;
-  events.filter((e) => e.kind === 'club').forEach((c) => {
-    const words = norm_(c.place).split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && GENERIC_PLACES_.indexOf(w) < 0);
-    if (!words.length || !c.dateFrom) return;
-    const hit = organized.find((o) => {
-      const end = o.dateTo || o.dateFrom;
-      if (!o.dateFrom || c.dateFrom < o.dateFrom || c.dateFrom > end) return false;
-      const where = norm_([o.place, o.name].join(' '));
-      return words.some((w) => where.indexOf(w) >= 0);
-    });
-    if (hit) out[c.id] = hit;
-  });
-  return out;
 }
 
 function listPublicEvents_() {
@@ -1448,15 +1421,9 @@ const ADMIN_ACTIONS = {
 
   events(body, user) {
     const regs = table_('registrations').rows;
-    const all = loadEvents_();
-    const covered = coveredClubEvents_(all);
-    const events = all.filter((e) => canEdit_(user, e))
+    const events = loadEvents_().filter((e) => canEdit_(user, e))
       .sort((a, b) => String(b.dateFrom).localeCompare(String(a.dateFrom)))
-      .map((e) => {
-        const v = adminEventView_(e, regs.filter((r) => r.eventId === e.id));
-        if (covered[e.id]) v.coveredBy = { id: covered[e.id].id, name: covered[e.id].name };
-        return v;
-      });
+      .map((e) => adminEventView_(e, regs.filter((r) => r.eventId === e.id)));
     return { user, events, system: systemStatus_(user) };
   },
 

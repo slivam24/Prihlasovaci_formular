@@ -235,11 +235,8 @@
   let clubShowPast = false;
 
   /** Přehled klubové sekce: každá akce = soutěž z kalendáře, přepínač přihlašování a úpravy přímo v tabulce. */
-  function clubListHtml(allClub) {
+  function clubListHtml(events) {
     const today = new Date().toISOString().slice(0, 10);
-    // turnaje, které klub sám pořádá, jsou jen v pořadatelské sekci
-    const covered = allClub.filter((ev) => ev.coveredBy && (ev.dateTo || ev.dateFrom) >= today);
-    const events = allClub.filter((ev) => !ev.coveredBy);
     const sorted = events.slice().sort((a, b) => String(a.dateFrom).localeCompare(String(b.dateFrom)));
     const past = sorted.filter((ev) => (ev.dateTo || ev.dateFrom) < today);
     const list = clubShowPast ? sorted : sorted.filter((ev) => (ev.dateTo || ev.dateFrom) >= today);
@@ -248,8 +245,6 @@
       <div class="page-head"><p class="small muted">${R.plural(sorted.length, 'akce', 'akce', 'akcí')} v klubové sekci, přihlašování otevřeno u ${open}.
         Veřejný přehled: <a href="klub.html" target="_blank">klubová sekce ↗</a></p>
         <button type="button" class="link" id="club-past">${clubShowPast ? 'jen nadcházející' : `zobrazit i proběhlé (${past.length})`}</button></div>
-      ${covered.length ? `<p class="small muted">V klubové sekci se nezobrazuje ${R.plural(covered.length, 'turnaj', 'turnaje', 'turnajů')}, které pořádáte – jsou jen v pořadatelské sekci:
-        ${covered.map((ev) => `${esc(R.formatDate(ev.dateFrom))} ${esc(ev.name)} → <a href="#/akce/${esc(ev.coveredBy.id)}">${esc(ev.coveredBy.name)}</a>`).join(', ')}.</p>` : ''}
       <div class="table-wrap"><table class="admin-table cal-admin">
         <thead><tr><th>Termín</th><th>Akce</th><th>Místo</th><th>Přihlašování</th><th>Uzávěrka</th><th class="num">Přihl.</th><th></th></tr></thead>
         <tbody>${list.map((ev) => {
@@ -275,7 +270,6 @@
     me = data.user;
     updateBar();
     const clubEvents = data.events.filter((ev) => ev.kind === 'club');
-    const visibleClub = clubEvents.filter((ev) => !ev.coveredBy);
     const mainEvents = data.events.filter((ev) => ev.kind !== 'club');
     const club = eventsTab === 'club';
     const rows = mainEvents.map((ev) => `<tr>
