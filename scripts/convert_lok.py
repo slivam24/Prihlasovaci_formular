@@ -173,7 +173,12 @@ def main():
             rapid, rapid_clubs = read_rapid(rapid_path)
             matched, added = merge_rapid(data, rapid, rapid_clubs)
             data["rapidDate"] = rapid_date
-            print(f"Rapid LOK {rapid_date}: {len(rapid)} hráčů, doplněno {matched}, navíc přidáno {added}", file=sys.stderr)
+            f = data["fields"]
+            i_rn, i_rr = f.index("rn"), f.index("rr")
+            rated = sum(1 for p in data["players"] if p[i_rr])
+            differs = sum(1 for p in data["players"] if p[i_rr] and p[i_rr] != p[i_rn])
+            print(f"Rapid LOK {rapid_date}: {len(rapid)} hráčů, doplněno {matched}, navíc přidáno {added}; "
+                  f"s rapid ELO {rated}, z toho jiné než klasické {differs}", file=sys.stderr)
     except (SystemExit, OSError, zipfile.BadZipFile, xlrd.XLRDError) as e:
         print(f"::warning::Rapid LOK se nepodařilo zpracovat ({e}), použije se jen klasická LOK.", file=sys.stderr)
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
