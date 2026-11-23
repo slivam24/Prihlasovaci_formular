@@ -680,8 +680,9 @@ function cleanPlayer_(raw, maxYear) {
     fed: (clean_(raw.fed, 3) || 'CZE').toUpperCase(),
     rn: toInt_(raw.rn),
     rf: toInt_(raw.rf),
-    rnr: toInt_(raw.rnr),
-    rfr: toInt_(raw.rfr),
+    // rapid ratingy jen když je web poslal (listina s rapid LOK); jinak u rapid turnaje zůstane klasický
+    rnr: raw.rnr == null ? undefined : toInt_(raw.rnr),
+    rfr: raw.rfr == null ? undefined : toInt_(raw.rfr),
     clubNo: toInt_(raw.clubNo),
     club: clean_(raw.club, 100),
     status: clean_(raw.status, 3),
@@ -1540,6 +1541,43 @@ const ADMIN_ACTIONS = {
       update_('registrations', row);
       logChanges_(ev, row.applicationId, logs, user.email, now);
       return { registration: stripRow_(row), changes: table_('changes').rows.filter((c) => c.eventId === ev.id).map(stripRow_) };
+    });
+  },
+
+  /** Přepočet ratingu z aktuální LOK / rapid LOK: updates = [{ id, rn, rf }] (spočítá web z listiny). */
+  updateRatings(body, user) {
+    const ev = loadEventById_(body.eventId);
+    assertCanEdit_(user, ev);
+    const updates = Array.isArray(body.updates) ? body.updates.slice(0, 2000) : [];
+    return withLock_(() => {
+      const byId = {};
+      table_('registrations').rows.forEach((r) => { if (r.eventId === ev.id) byId[r.id] = r; });
+      const now = new Date();
+      const logs = {};
+      let changed = 0;
+      updates.forEach((u) => {
+        const row = byId[String(u && u.id)];
+        if (!row || !row.surname || row.inLok !== YES) return;
+        const rn = toInt_(u.rn);
+        const rf = toInt_(u.rf);
+        if (toInt_(row.rn) === rn && toInt_(row.rf) === rf) return;
+        const t = ev.tournaments.find((x) => x.id === row.tournamentId);
+        const parts = [];
+        if (toInt_(row.rn) !== rn) parts.push(`ELO ČR ${toInt_(row.rn) || '—'} → ${rn || '—'}`);
+        if (toInt_(row.rf) !== rf) parts.push(`FIDE ${toInt_(row.rf) || '—'} → ${rf || '—'}`);
+        (logs[row.applicationId] = logs[row.applicationId] || []).push({
+          registrationId: row.id, action: 'přepočet ratingu',
+          detail: `${row.surname} ${row.firstName} – ${t ? t.short || t.name : ''}${t && t.rating === 'rapid' ? ' (rapid)' : ''}: ${parts.join('; ')}`,
+        });
+        row.rn = rn || '';
+        row.rf = rf || '';
+        row.updatedAt = now.toISOString();
+        row.updatedBy = user.email;
+        update_('registrations', row);
+        changed++;
+      });
+      Object.keys(logs).forEach((appId) => logChanges_(ev, appId, logs[appId], user.email, now));
+      return { changed };
     });
   },
 

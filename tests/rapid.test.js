@@ -22,7 +22,8 @@ test('listina: rapid ratingy z rapid LOK', () => {
   assert.deepEqual([p.rn, p.rf, p.rnr, p.rfr], [1800, 1850, 1700, 1750]);
   // starší players.json bez rapid sloupců
   const old = new PlayerDB({ fields: data.fields.slice(0, 11), clubs: data.clubs, players: data.players.map((r) => r.slice(0, 11)) });
-  assert.equal(old.players[0].rnr, 0);
+  assert.equal(old.players[0].rnr, undefined);
+  assert.equal(R.rated({ rating: 'rapid' }, old.players[0]).rn, 1800, 'bez rapid LOK se použije klasický');
 });
 
 test('výběr z listiny: víc klubů s „Ústí“, přesný klub, jméno', () => {
@@ -70,4 +71,27 @@ test('backend: u rapid turnaje se uloží rapid rating, u klasického klasický'
   assert.deepEqual([by(ev.tournaments[0].id).rn, by(ev.tournaments[0].id).rf], [1700, 1750]);
   assert.deepEqual([by(ev.tournaments[1].id).rn, by(ev.tournaments[1].id).rf], [1800, 1850]);
   assert.equal(by(ev.tournaments[2].id).rn, 1700, 'soupiska rapid družstev');
+});
+
+test('backend: přepočet ratingu se zápisem do změn', () => {
+  const gas = createGas({ owner: 'owner@example.cz' });
+  const admin = (action, body) => gas.post(Object.assign({ action: 'admin.' + action, idToken: fakeToken('owner@example.cz') }, body));
+  const ev = admin('saveEvent', { event: { name: 'GP', slug: 'gp', dateFrom: '2099-05-01', status: 'otevreno',
+    tournaments: [{ name: 'Rapid', type: 'individual', rating: 'rapid' }] } }).event;
+  const reg = (id, extra) => gas.post({ action: 'register', slug: 'gp', mode: 'individual', email: 'a@b.cz', tournaments: [ev.tournaments[0].id],
+    player: Object.assign({ registered: true, id, surname: 'Hráč' + id, firstName: 'Jan', year: 2000, rn: 1800, rf: 1850, club: 'K', fed: 'CZE' }, extra) });
+  reg(10);
+  reg(0, { registered: false });
+  let regs = admin('event', { id: ev.id }).registrations;
+  const lok = regs.find((r) => r.inLok === 'ANO');
+  const manual = regs.find((r) => r.inLok !== 'ANO');
+  assert.equal(lok.rn, 1800, 'bez rapid údajů zůstal klasický');
+  const res = admin('updateRatings', { eventId: ev.id, updates: [{ id: lok.id, rn: 1700, rf: 1750 }, { id: manual.id, rn: 999, rf: 0 }, { id: 'neexistuje', rn: 1 }] });
+  assert.equal(res.changed, 1, 'ručně zadaný hráč se nemění');
+  const detail = admin('event', { id: ev.id });
+  regs = detail.registrations;
+  assert.deepEqual([regs.find((r) => r.id === lok.id).rn, regs.find((r) => r.id === lok.id).rf], [1700, 1750]);
+  const log = detail.changes.find((c) => c.action === 'přepočet ratingu');
+  assert.match(log.detail, /ELO ČR 1800 → 1700; FIDE 1850 → 1750/);
+  assert.equal(admin('updateRatings', { eventId: ev.id, updates: [{ id: lok.id, rn: 1700, rf: 1750 }] }).changed, 0, 'beze změny nic');
 });

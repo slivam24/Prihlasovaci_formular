@@ -48,8 +48,8 @@
           sex: r[ix.sex] || '',
           rn: r[ix.rn] || 0,
           rf: r[ix.rf] || 0,
-          rnr: ix.rr != null ? r[ix.rr] || 0 : 0,
-          rfr: ix.rfr != null ? r[ix.rfr] || 0 : 0,
+          rnr: ix.rr != null ? r[ix.rr] || 0 : undefined, // bez rapid LOK v datech → klasický rating
+          rfr: ix.rfr != null ? r[ix.rfr] || 0 : undefined,
           title: r[ix.title] || '',
           fide: r[ix.fide] || 0,
           fed: r[ix.fed] || 'CZE',

@@ -877,6 +877,7 @@
       <div class="toolbar">
         <button type="button" class="button primary" id="add-reg">+ Přidat hráče</button>
         <button type="button" class="button" id="export-all">Přihlášky, doplňky a změny (.xlsx)</button>
+        <button type="button" class="button" id="recalc-ratings" title="ELO ČR a FIDE podle aktuální LOK (u rapid turnajů rapid LOK)">Přepočítat rating z LOK</button>
         <label class="check"><input type="checkbox" id="show-cancelled" ${showCancelled ? 'checked' : ''}> zobrazit zrušené</label>
       </div>
 
@@ -924,6 +925,7 @@
     $('#add-reg').addEventListener('click', addRegistrationDialog);
     $('#copy-event').addEventListener('click', () => copyEventDialog(ev));
     $('#export-all').addEventListener('click', exportAll);
+    $('#recalc-ratings').addEventListener('click', recalcRatingsDialog);
     $$('[data-export-txt]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportTxt, 'txt', b.dataset.part)));
     $$('[data-export-xlsx]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportXlsx, 'xlsx')));
     $$('[data-toggle]').forEach((b) => b.addEventListener('click', () => toggleRegistration(b.dataset.toggle)));
@@ -1025,6 +1027,67 @@
         { name: 'Změny', rows: [cHeader].concat(cRows) },
       ]);
     } catch (e) { alert(e.message); }
+  }
+
+  /**
+   * Přepočet ratingu přihlášených podle aktuální listiny: u rapid turnajů rapid LOK, jinak klasická LOK.
+   * Týká se jen hráčů z LOK (podle ID ČR); nejdřív ukáže náhled změn.
+   */
+  async function recalcRatingsDialog() {
+    const ev = current.event;
+    let db;
+    try { db = await getPlayerDb(); } catch (e) { alert(e.message); return; }
+    const byId = new Map(db.players.map((p) => [p.id, p]));
+    const changes = [];
+    let missing = 0;
+    current.registrations.forEach((r) => {
+      if (!r.surname || r.status === 'zrušeno' || r.inLok !== 'ANO' || !r.idCr) return;
+      const t = ev.tournaments.find((x) => x.id === r.tournamentId);
+      const p = byId.get(Number(r.idCr));
+      if (!t) return;
+      if (!p) { missing++; return; }
+      const q = R.rated(t, p);
+      const rn = q.rn || 0;
+      const rf = q.rf || 0;
+      if ((Number(r.rn) || 0) !== rn || (Number(r.rf) || 0) !== rf) changes.push({ r, t, rn, rf });
+    });
+    const when = db.generated ? new Date(db.generated).toLocaleDateString('cs-CZ') : '';
+    const rows = changes.map((c) => `<tr><td>${esc(c.r.surname)} ${esc(c.r.firstName)}</td>
+      <td>${esc(c.t.short || c.t.name)}${c.t.rating === 'rapid' ? ' <span class="badge">rapid</span>' : ''}</td>
+      <td class="num">${esc(c.r.rn || '—')} → <strong>${c.rn || '—'}</strong></td>
+      <td class="num">${esc(c.r.rf || '—')} → <strong>${c.rf || '—'}</strong></td></tr>`).join('');
+    openDialog(`<div class="dialog-form">
+      <h2>Přepočítat rating z LOK</h2>
+      <p class="small muted">Podle listiny ${esc(when)}. U turnajů s ratingem „rapid“ se bere rapid LOK, u ostatních klasická LOK.
+        Týká se jen hráčů z LOK, ručně zadaní hráči zůstanou beze změny. Každá změna se zapíše do záznamu změn.</p>
+      ${changes.length ? `<div class="table-wrap issue-list"><table class="admin-table">
+          <thead><tr><th>Hráč</th><th>Turnaj</th><th class="num">ELO ČR</th><th class="num">FIDE</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>`
+        : '<p><strong>Všichni přihlášení už mají aktuální rating.</strong></p>'}
+      ${missing ? `<p class="small muted">Beze změny zůstává ${R.plural(missing, 'přihláška', 'přihlášky', 'přihlášek')} hráčů, kteří v aktuální listině nejsou.</p>` : ''}
+      <p class="actions">
+        ${changes.length ? `<button type="button" class="primary" id="recalc-save">Uložit ${R.plural(changes.length, 'změnu', 'změny', 'změn')}</button>` : ''}
+        <button type="button" data-close>${changes.length ? 'Zrušit' : 'Zavřít'}</button>
+      </p>
+    </div>`, (d) => {
+      const btn = $('#recalc-save', d);
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Ukládám…';
+        try {
+          const res = await call('updateRatings', { eventId: ev.id, updates: changes.map((c) => ({ id: c.r.id, rn: c.rn, rf: c.rf })) });
+          dialog.close();
+          delete memo.event[ev.id];
+          await viewEvent(ev.id);
+          alert(`Hotovo – ${R.plural(res.changed, 'přihláška upravena', 'přihlášky upraveny', 'přihlášek upraveno')}.`);
+        } catch (e) {
+          btn.disabled = false;
+          btn.textContent = 'Zkusit znovu';
+          alert(e.message);
+        }
+      });
+    });
   }
 
   async function toggleRegistration(id) {

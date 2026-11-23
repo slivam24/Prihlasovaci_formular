@@ -21,6 +21,8 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - doplňující otázky podle akce (doprava, ubytování, strava, …),
 - přihlášky: zrušení / obnovení, úprava, poznámka pořadatele, ruční přidání hráče,
 - **export pro Swiss-Manager** (.TXT a .xlsx) pro každý turnaj zvlášť, export všech přihlášek do Excelu,
+- **přepočet ratingu z LOK** (tlačítko v detailu akce): ELO ČR a FIDE přihlášených podle aktuální listiny,
+  u rapid turnajů z rapid LOK; s náhledem změn a zápisem do záznamu změn,
 - souhrn doplňujících otázek (kolik lidí chce dopravu, ubytování…),
 - **družstva**: víc družstev v jedné přihlášce, soupiska se řadí šipkami (pořadí = šachovnice, pak náhradníci),
   hráče lze přidat filtrem „Vybrat hráče z listiny“ a přesouvat mezi družstvy; soupisku lze doplnit později
