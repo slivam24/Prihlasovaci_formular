@@ -31,6 +31,8 @@
 
   /** Vynucované podmínky (ročník). Vrací důvod, nebo ''. */
   function eligibility(t, p) {
+    const cats = categoriesOf(t);
+    if (cats.length && p && p.year && p.year < cats[cats.length - 1]) return `jen pro ročník ${cats[cats.length - 1]} a mladší`;
     if (!p || !p.year) return '';
     if (t.minBirthYear && p.year < t.minBirthYear) return `jen pro ročník ${t.minBirthYear} a mladší`;
     if (t.maxBirthYear && p.year > t.maxBirthYear) return `jen pro ročník ${t.maxBirthYear} a starší`;
@@ -89,6 +91,35 @@
   function byDate(list) {
     return list.map((t, i) => ({ t, i })).sort((a, b) =>
       String(a.t.dateFrom || '9999').localeCompare(String(b.t.dateFrom || '9999')) || a.i - b.i).map((x) => x.t);
+  }
+
+  // ---- věkové kategorie v turnaji („2016, 2012, 2008“ = ročník … a mladší) ----
+
+  function categoriesOf(t) {
+    const v = t && t.categories;
+    const list = Array.isArray(v) ? v : String(v || '').split(/[^0-9]+/);
+    const years = list.map((x) => parseInt(x, 10)).filter((y) => y >= 1900 && y <= 2100);
+    return years.filter((y, i) => years.indexOf(y) === i).sort((a, b) => b - a);
+  }
+
+  const categoryLabel = (c) => `ročník ${c} a mladší`;
+
+  /** Nejmladší kategorie, do které hráč smí (ročník hráče ≥ ročník kategorie); 0 = žádná. */
+  function bestCategory(t, p) {
+    const cats = categoriesOf(t);
+    if (!cats.length) return 0;
+    if (!p || !p.year) return cats[cats.length - 1];
+    const ok = cats.filter((c) => p.year >= c);
+    return ok.length ? ok[0] : 0;
+  }
+
+  /** Kontrola zvolené kategorie: {block} do mladší nesmí, {warn} ve starší s upozorněním. */
+  function categoryCheck(t, p, c) {
+    if (!c || !p || !p.year) return {};
+    if (p.year < c) return { block: `ročník ${p.year} nemůže hrát v kategorii ${categoryLabel(c)}` };
+    const best = bestCategory(t, p);
+    if (best && c < best) return { warn: `Hráč hraje ve starší kategorii (${categoryLabel(c)}), podle ročníku patří do kategorie ${categoryLabel(best)}.` };
+    return {};
   }
 
   const SIGNUP_LABELS = { open: 'přihlašování přes klub', none: 'výpravu nepořádáme', league: 'dlouhodobá soutěž' };
@@ -235,7 +266,8 @@
     plural, teamSize,
     formatMoney, optionPrice, extraPrice, extraText, extrasTotal,
     norm, eventYear, isClosed, ruleText, eligibility, ratingWarning, samePlayer,
-    tournamentLabel, tournamentClosed, tournamentPast, byDate, EVENT_KINDS, SIGNUP_LABELS, signupState, STATUS_LABELS, formatDate, formatRange,
+    tournamentLabel, tournamentClosed, tournamentPast, byDate, EVENT_KINDS, SIGNUP_LABELS, signupState,
+    categoriesOf, categoryLabel, bestCategory, categoryCheck, STATUS_LABELS, formatDate, formatRange,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.Rules = api;

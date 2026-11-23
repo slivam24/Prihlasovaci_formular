@@ -264,7 +264,8 @@
    "dateTo": "",
    "place": "Chomutov",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
-   "signup": "none"
+   "signup": "none",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "2. liga – 1. kolo",
@@ -499,7 +500,8 @@
    "dateTo": "",
    "place": "Litoměřice",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
-   "signup": "none"
+   "signup": "none",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "1. liga – 3. kolo",
@@ -736,7 +738,8 @@
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
    "minBirthYear": 2008,
-   "deadline": "2027-01-09"
+   "deadline": "2027-01-14",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "Extraliga – 5. kolo",
@@ -949,7 +952,8 @@
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
    "minBirthYear": 2008,
-   "deadline": "2027-02-20"
+   "deadline": "2027-02-25",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "2. liga – 9. kolo",
@@ -1133,7 +1137,8 @@
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
    "minBirthYear": 2008,
-   "deadline": "2027-03-27"
+   "deadline": "2027-04-01",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "MČR do 8 let",
@@ -1190,7 +1195,7 @@
    "note": "kat. 2007 a ml., postupové jen 2013 a ml.",
    "signup": "open",
    "minBirthYear": 2007,
-   "deadline": "2027-04-03"
+   "deadline": "2027-04-08"
   },
   {
    "name": "2. liga – 11. kolo",
@@ -1225,7 +1230,8 @@
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
    "minBirthYear": 2008,
-   "deadline": "2027-04-10"
+   "deadline": "2027-04-15",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "1. liga – 11. kolo",
@@ -1328,7 +1334,8 @@
    "note": "kategorie 2012, 2014, 2016 a 2018 a ml.",
    "signup": "open",
    "minBirthYear": 2012,
-   "deadline": "2027-05-15"
+   "deadline": "2027-05-20",
+   "categories": "2018, 2016, 2014, 2012"
   },
   {
    "name": "MČR družstev starších žáků",

@@ -26,13 +26,13 @@ const SHEETS = {
     name: 'Turnaje',
     cols: ['id', 'eventId', 'order', 'name', 'short', 'day', 'type', 'minBirthYear', 'maxBirthYear',
       'warnMaxRating', 'capacity', 'boards', 'reserves', 'fee', 'feeRules', 'rating',
-      'dateFrom', 'dateTo', 'place', 'deadline', 'infoUrl', 'signup', 'note'],
+      'dateFrom', 'dateTo', 'place', 'deadline', 'infoUrl', 'signup', 'note', 'categories'],
   },
   registrations: {
     name: 'Přihlášky',
     cols: ['id', 'applicationId', 'eventId', 'tournamentId', 'createdAt', 'email', 'mode',
       'surname', 'firstName', 'year', 'sex', 'title', 'idCr', 'fideId', 'rn', 'rf', 'fed', 'clubNo', 'club', 'sk',
-      'inLok', 'team', 'board', 'captain', 'extras', 'status', 'orgNote', 'updatedAt', 'updatedBy', 'editToken'],
+      'inLok', 'team', 'board', 'captain', 'extras', 'status', 'orgNote', 'updatedAt', 'updatedBy', 'editToken', 'category'],
   },
   receipts: {
     name: 'Doklady',
@@ -82,6 +82,7 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   return respond_(() => {
     maybeSeedClubCalendar_();
+    maybeMigrateClubCalendar_();
     // klubové sekce nejsou v přehledu akcí – jsou dostupné jen přes odkaz
     if (p.action === 'events') return { events: cachedPublicEvents_().filter((e) => e.kind !== 'club') };
     if (p.action === 'event') {
@@ -274,6 +275,7 @@ function buildEvent_(row, tourRows) {
       infoUrl: String(t.infoUrl || ''),
       signup: SIGNUP_TYPES.indexOf(t.signup) >= 0 ? t.signup : 'open',
       note: String(t.note || ''),
+      categories: parseCategories_(t.categories),
     })),
   };
 }
@@ -411,6 +413,7 @@ function sanitizeEvent_(input, existingEvents, currentId) {
       infoUrl: /^https?:\/\//.test(String(t.infoUrl || '')) ? clean_(t.infoUrl, 300) : '',
       signup: SIGNUP_TYPES.indexOf(t.signup) >= 0 ? t.signup : 'open',
       note: clean_(t.note, 300),
+      categories: type === 'team' ? '' : parseCategories_(t.categories).join(', '),
       feeRules: type === 'team' ? [] : (Array.isArray(t.feeRules) ? t.feeRules : []).slice(0, 10).map((r) => {
         const rt = FEE_RULE_TYPES.indexOf(r && r.type) >= 0 ? r.type : '';
         const price = cleanPrice_(r && r.price);
@@ -582,9 +585,18 @@ function processRegistration_(data, ev, existing, now, opts) {
       const ids = Array.isArray(entry.tournaments) ? entry.tournaments.map(String) : [];
       const tours = ev.tournaments.filter((t) => t.type === 'individual' && ids.indexOf(t.id) >= 0);
       if (!tours.length) return fail(multi ? `${fullName_(p)}: vyberte alespoň jeden turnaj.` : 'Vyberte alespoň jeden turnaj.');
+      const cats = {};
       for (const t of tours) {
         const label = t.short || t.name;
         if (!admin && t.signup !== 'open') return fail(`Na turnaj „${label}“ se přes klub nepřihlašuje.`);
+        if (t.categories && t.categories.length) {
+          const wanted = toInt_(entry.categories && entry.categories[t.id]) || bestCategory_(t.categories, p.year);
+          if (t.categories.indexOf(wanted) < 0) return fail(`${fullName_(p)}: v turnaji „${label}“ vyberte kategorii.`);
+          if (!admin && p.year && p.year < wanted) {
+            return fail(`${fullName_(p)} (ročník ${p.year}) nemůže hrát v kategorii ročník ${wanted} a mladší turnaje „${label}“.`);
+          }
+          cats[t.id] = wanted;
+        }
         if (!admin && tournamentClosed_(t, now)) return fail(`Přihlašování na turnaj „${label}“ je už uzavřené.`);
         const block = eligibility_(t, p);
         if (block && !admin) return fail(`${fullName_(p)}: turnaj „${label}“ je ${block}.`);
@@ -597,13 +609,14 @@ function processRegistration_(data, ev, existing, now, opts) {
           return fail(`Turnaj „${label}“ je již naplněn` + (multi ? ` (volných míst: ${Math.max(0, t.capacity - inTour.length)}).` : '.'));
         }
       }
-      tours.forEach((t) => rows.push(row(p, t)));
-      done.push({ p, tours });
+      tours.forEach((t) => rows.push(row(p, t, cats[t.id] ? { category: cats[t.id] } : null)));
+      done.push({ p, tours, cats });
     }
     return {
       ok: true, applicationId, editToken, rows,
       summary: {
-        entries: done.map((d) => ({ name: fullName_(d.p), tournaments: d.tours.map(tourTitle_) })),
+        entries: done.map((d) => ({ name: fullName_(d.p),
+          tournaments: d.tours.map((t) => tourTitle_(t) + (d.cats[t.id] ? `, kategorie ročník ${d.cats[t.id]} a mladší` : '')) })),
         extras,
       },
     };
@@ -783,7 +796,24 @@ function rowToPlayer_(r) {
   };
 }
 
+/** Kategorie turnaje (ročník „… a mladší“), od nejmladší: „2016, 2012, 2008“ → [2016, 2012, 2008]. */
+function parseCategories_(v) {
+  const list = Array.isArray(v) ? v : String(v || '').split(/[^0-9]+/);
+  const years = list.map(toInt_).filter((y) => y >= 1900 && y <= 2100);
+  return years.filter((y, i) => years.indexOf(y) === i).sort((a, b) => b - a).slice(0, 8);
+}
+
+/** Nejmladší kategorie, do které hráč smí (ročník hráče ≥ ročník kategorie). */
+function bestCategory_(cats, year) {
+  if (!year) return cats[cats.length - 1];
+  const ok = cats.filter((c) => year >= c);
+  return ok.length ? ok[0] : 0;
+}
+
 function eligibility_(t, p) {
+  if (t.categories && t.categories.length && p.year && p.year < t.categories[t.categories.length - 1]) {
+    return `jen pro ročník ${t.categories[t.categories.length - 1]} a mladší`;
+  }
   if (t.minBirthYear && p.year < t.minBirthYear) return `jen pro ročník ${t.minBirthYear} a mladší`;
   if (t.maxBirthYear && p.year > t.maxBirthYear) return `jen pro ročník ${t.maxBirthYear} a starší`;
   return '';
@@ -831,7 +861,7 @@ function publicList_(ev) {
 function buildPublicList_(ev, regs) {
   const pub = (r) => {
     const p = rowToPlayer_(r);
-    return { name: fullName_(p), title: p.title, year: p.year, club: p.club, rn: p.rn, rf: p.rf, board: toInt_(r.board) };
+    return { name: fullName_(p), title: p.title, year: p.year, club: p.club, rn: p.rn, rf: p.rf, board: toInt_(r.board), category: toInt_(r.category) || '' };
   };
   const byRating = (a, b) => (b.rf - a.rf) || (b.rn - a.rn) || a.name.localeCompare(b.name, 'cs');
   const out = { event: publicEvent_(ev), updated: new Date().toISOString(), tournaments: {}, teams: {} };
@@ -1607,7 +1637,7 @@ const ADMIN_ACTIONS = {
     return withLock_(() => {
       const row = table_('tournaments').rows.find((r) => r.id === String(body.tournamentId) && r.eventId === ev.id);
       if (!row) throw userError_('Turnaj nebyl nalezen.');
-      const signup = SIGNUP_TYPES.indexOf(body.signup) >= 0 ? body.signup : 'open';
+      const signup = SIGNUP_TYPES.indexOf(body.signup) >= 0 ? body.signup : (SIGNUP_TYPES.indexOf(row.signup) >= 0 ? row.signup : 'open');
       const before = SIGNUP_TYPES.indexOf(row.signup) >= 0 ? row.signup : 'open';
       row.signup = signup;
       if ('deadline' in body) {
@@ -1616,11 +1646,15 @@ const ADMIN_ACTIONS = {
         if (d && row.dateFrom && d > String(row.dateFrom)) throw userError_('Uzávěrka je až po začátku turnaje.');
         row.deadline = d;
       }
+      if ('note' in body) row.note = clean_(body.note, 300);
+      if ('infoUrl' in body) row.infoUrl = /^https?:\/\//.test(String(body.infoUrl || '')) ? clean_(body.infoUrl, 300) : '';
+      if ('categories' in body && row.type !== 'team') row.categories = parseCategories_(body.categories).join(', ');
       update_('tournaments', row);
       const labels = { open: 'přihlašování otevřeno', none: 'výpravu nepořádáme', league: 'dlouhodobá soutěž' };
       logChanges_(ev, '', [{
-        action: 'stav turnaje',
-        detail: `${row.short || row.name}: ${labels[before]} → ${labels[signup]}${row.deadline ? ', uzávěrka ' + fmtDate_(row.deadline) : ''}`,
+        action: before === signup ? 'úprava turnaje' : 'stav turnaje',
+        detail: `${row.short || row.name}: ${before === signup ? labels[signup] : labels[before] + ' → ' + labels[signup]}` +
+          `${row.deadline ? ', uzávěrka ' + fmtDate_(row.deadline) : ''}${row.note ? ', poznámka: ' + row.note : ''}`,
       }], user.email, new Date());
       clearPublicCache_();
       return { event: adminEventView_(loadEventById_(ev.id), table_('registrations').rows.filter((r) => r.eventId === ev.id)) };

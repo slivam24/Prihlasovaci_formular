@@ -29,6 +29,45 @@ function seedClubCalendar_() {
   return ADMIN_ACTIONS.saveEvent({ event }, { email: String(owner.email).toLowerCase(), role: 'superadmin' }).event;
 }
 
+/**
+ * Jednorázová úprava už založeného kalendáře (verze 2): kategorie u GP a KP mládeže a klubové uzávěrky
+ * 2 dny před turnajem. Mění jen hodnoty, které od založení nikdo neupravil.
+ */
+const MIGRATE_KALENDAR_PROP_ = 'KALENDAR_2026_V2';
+
+function maybeMigrateClubCalendar_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(MIGRATE_KALENDAR_PROP_)) return 0;
+  let n = 0;
+  try {
+    n = migrateClubCalendar_();
+    props.setProperty(MIGRATE_KALENDAR_PROP_, new Date().toISOString());
+  } catch (err) {
+    console.error('Úprava klubového kalendáře se nepovedla', err);
+  }
+  return n;
+}
+
+function migrateClubCalendar_() {
+  const ev = loadEvents_().find((e) => e.slug === CLUB_CALENDAR_2026_.slug);
+  if (!ev) return 0;
+  const src = {};
+  CLUB_CALENDAR_2026_.tournaments.forEach((t) => { src[t.name + '|' + t.dateFrom] = t; });
+  let n = 0;
+  table_('tournaments').rows.filter((r) => r.eventId === ev.id).forEach((r) => {
+    const from = String(readCell_('dateFrom', r.dateFrom) || '');
+    const s = src[r.name + '|' + from];
+    if (!s) return;
+    let changed = false;
+    if (s.categories && !String(r.categories || '').trim()) { r.categories = s.categories; changed = true; }
+    const deadline = String(readCell_('deadline', r.deadline) || '');
+    if (s.deadline && from && deadline === addDays_(from, -7) && deadline !== s.deadline) { r.deadline = s.deadline; changed = true; }
+    if (changed) { update_('tournaments', r); n++; }
+  });
+  if (n) clearPublicCache_();
+  return n;
+}
+
 function createClubCalendar() {
   const ev = seedClubCalendar_();
   PropertiesService.getScriptProperties().setProperty(SEED_KALENDAR_PROP_, new Date().toISOString());
@@ -302,7 +341,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Chomutov",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
-   "signup": "none"
+   "signup": "none",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "2. liga – 1. kolo",
@@ -537,7 +577,8 @@ const CLUB_CALENDAR_2026_ = {
    "dateTo": "",
    "place": "Litoměřice",
    "note": "kategorie 2008, 2012 a 2016 a ml.",
-   "signup": "none"
+   "signup": "none",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "1. liga – 3. kolo",
@@ -774,7 +815,8 @@ const CLUB_CALENDAR_2026_ = {
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
    "minBirthYear": 2008,
-   "deadline": "2027-01-09"
+   "deadline": "2027-01-14",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "Extraliga – 5. kolo",
@@ -987,7 +1029,8 @@ const CLUB_CALENDAR_2026_ = {
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
    "minBirthYear": 2008,
-   "deadline": "2027-02-20"
+   "deadline": "2027-02-25",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "2. liga – 9. kolo",
@@ -1171,7 +1214,8 @@ const CLUB_CALENDAR_2026_ = {
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
    "minBirthYear": 2008,
-   "deadline": "2027-03-27"
+   "deadline": "2027-04-01",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "MČR do 8 let",
@@ -1228,7 +1272,7 @@ const CLUB_CALENDAR_2026_ = {
    "note": "kat. 2007 a ml., postupové jen 2013 a ml.",
    "signup": "open",
    "minBirthYear": 2007,
-   "deadline": "2027-04-03"
+   "deadline": "2027-04-08"
   },
   {
    "name": "2. liga – 11. kolo",
@@ -1263,7 +1307,8 @@ const CLUB_CALENDAR_2026_ = {
    "note": "kategorie 2008, 2012 a 2016 a ml.",
    "signup": "open",
    "minBirthYear": 2008,
-   "deadline": "2027-04-10"
+   "deadline": "2027-04-15",
+   "categories": "2016, 2012, 2008"
   },
   {
    "name": "1. liga – 11. kolo",
@@ -1366,7 +1411,8 @@ const CLUB_CALENDAR_2026_ = {
    "note": "kategorie 2012, 2014, 2016 a 2018 a ml.",
    "signup": "open",
    "minBirthYear": 2012,
-   "deadline": "2027-05-15"
+   "deadline": "2027-05-20",
+   "categories": "2018, 2016, 2014, 2012"
   },
   {
    "name": "MČR družstev starších žáků",

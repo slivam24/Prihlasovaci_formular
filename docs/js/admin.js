@@ -416,6 +416,8 @@
         ${numInput('minBirthYear', 'Jen ročník … a mladší', t.minBirthYear, 'vynucuje se')}
         ${numInput('maxBirthYear', 'Jen ročník … a starší', t.maxBirthYear, 'vynucuje se')}
         ${numInput('warnMaxRating', 'Upozornit nad ELO', t.warnMaxRating, 'jen upozornění')}
+        <label class="individual-only">Věkové kategorie<input data-f="categories" value="${esc(R.categoriesOf(t).join(', '))}" placeholder="např. 2016, 2012, 2008">
+          <span class="hint">ročníky „… a mladší“; do mladší kategorie hráč nesmí, do starší ano s upozorněním</span></label>
         ${numInput('capacity', 'Kapacita', t.capacity, 'hráčů / družstev, prázdné = bez omezení')}
         <span class="team-only">${numInput('boards', 'Počet šachovnic', t.boards || 4)}</span>
         <span class="team-only">${numInput('reserves', 'Počet náhradníků', t.reserves || 0)}</span>
@@ -651,6 +653,15 @@
     // druh akce: klubová sekce ukáže u turnajů datum, místo a uzávěrku
     const form = $('#event-form');
     const syncKind = () => form.classList.toggle('kind-club', form.kind.value === 'club');
+    // klubová sekce: k datu turnaje navrhnout uzávěrku 2 dny předem (dá se přepsat)
+    tours.addEventListener('change', (e) => {
+      if (!e.target.matches('[data-f="dateFrom"]') || form.kind.value !== 'club' || !e.target.value) return;
+      const dl = $('[data-f="deadline"]', e.target.closest('.tour-card'));
+      if (dl.value) return;
+      const d = new Date(e.target.value + 'T12:00:00');
+      d.setDate(d.getDate() - 2);
+      dl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
     form.kind.addEventListener('change', syncKind);
     syncKind();
     $('#add-extra').addEventListener('click', () => { addCard(extras, extraCard()); $('[data-f="label"]', extras.lastElementChild).focus(); });
@@ -678,7 +689,7 @@
           id: c.dataset.id || undefined,
           name: val(c, 'name'), short: val(c, 'short'), day: val(c, 'day'), type: val(c, 'type'), rating: val(c, 'rating'),
           dateFrom: val(c, 'dateFrom'), dateTo: val(c, 'dateTo'), place: val(c, 'place'), deadline: val(c, 'deadline'), infoUrl: val(c, 'infoUrl'),
-          signup: val(c, 'signup') || 'open', note: val(c, 'note'),
+          signup: val(c, 'signup') || 'open', note: val(c, 'note'), categories: val(c, 'categories'),
           minBirthYear: val(c, 'minBirthYear'), maxBirthYear: val(c, 'maxBirthYear'),
           warnMaxRating: val(c, 'warnMaxRating'), capacity: val(c, 'capacity'),
           boards: val(c, 'boards'), reserves: val(c, 'reserves'), fee: val(c, 'fee'),
@@ -770,6 +781,7 @@
       <td class="num">${r.board ? esc(r.board) : i + 1}.</td>
       <td><strong>${esc(p.surname)} ${esc(p.firstName)}</strong>${p.title ? ` <span class="badge">${esc(p.title)}</span>` : ''}
         ${p.registered ? '' : ' <span class="badge muted-badge" title="Hráč není v listině LOK">mimo LOK</span>'}
+        ${r.category ? ` <span class="badge" title="${esc(R.categoryLabel(r.category))}">kat. ${esc(r.category)}</span>` : ''}
         ${cancelled ? ' <span class="badge danger-badge">zrušeno</span>' : ''}
         ${cancelled && r.updatedAt ? `<div class="small muted">odhlášeno ${esc(new Date(r.updatedAt).toLocaleDateString('cs-CZ'))} · ${esc(r.updatedBy || '')}</div>` : ''}</td>
       <td class="num">${esc(p.year || '')}</td>
@@ -971,6 +983,7 @@
     $('#recalc-ratings').addEventListener('click', recalcRatingsDialog);
     $$('[data-org-xlsx]').forEach((b) => b.addEventListener('click', () => exportForOrganizer(b.dataset.orgXlsx)));
     $$('[data-signup]').forEach((sel) => sel.addEventListener('change', () => signupChange(sel)));
+    $$('[data-tour-edit]').forEach((b) => b.addEventListener('click', () => tourEditDialog(b.dataset.tourEdit)));
     const calToggle = $('#cal-toggle');
     if (calToggle) calToggle.addEventListener('click', () => { showCalendarAll = !showCalendarAll; renderEvent(); });
     $$('[data-org-text]').forEach((b) => b.addEventListener('click', () => organizerTextDialog(b.dataset.orgText)));
@@ -1100,10 +1113,11 @@
     const t = current.event.tournaments.find((x) => x.id === id);
     const rows = organizerRows(t);
     const team = t.type === 'team';
+    const cats = R.categoriesOf(t).length > 0;
     const head = ['Č.', 'Příjmení', 'Jméno', 'Ročník', 'Pohlaví', 'Klub', 'ID ČR', 'FIDE ID', 'ELO ČR', 'FIDE', 'Titul']
-      .concat(team ? ['Družstvo', 'Šachovnice'] : []);
+      .concat(team ? ['Družstvo', 'Šachovnice'] : []).concat(cats ? ['Kategorie'] : []);
     const data = rows.map((r, i) => [i + 1, r.surname, r.firstName, r.year, r.sex === 'F' ? 'ž' : 'm', r.club, r.idCr || '', r.fideId || '',
-      r.rn || '', r.rf || '', r.title || ''].concat(team ? [r.team, r.board] : []));
+      r.rn || '', r.rf || '', r.title || ''].concat(team ? [r.team, r.board] : []).concat(cats ? [r.category ? R.categoryLabel(r.category) : ''] : []));
     const title = [[`Přihláška za klub: ${clubName()}`], [`Turnaj: ${R.tournamentLabel(t)}${t.place ? ', ' + t.place : ''}`],
       [`Počet hráčů: ${rows.length}`], current.event.contactEmail ? [`Kontakt: ${current.event.contactEmail}`] : [], []];
     const contacts = [['Příjmení', 'Jméno', 'E-mail přihlášky', 'Přihlášeno', 'Doplňky / poznámka', 'Poznámka pořadatele']]
@@ -1129,7 +1143,7 @@
       if (t.type === 'team' && r.team !== lastTeam) { lines.push(`Družstvo ${r.team}:`); lastTeam = r.team; }
       const ids = [r.idCr ? 'ID ČR ' + r.idCr : '', r.fideId ? 'FIDE ID ' + r.fideId : '', r.rn ? 'ELO ČR ' + r.rn : '', r.rf ? 'FIDE ' + r.rf : '']
         .filter(Boolean).join(', ');
-      lines.push(`${t.type === 'team' ? '  ' + r.board : i + 1}. ${r.surname} ${r.firstName}${r.title ? ' ' + r.title : ''}, ${r.year || '?'}${r.club ? ', ' + r.club : ''}${ids ? ' (' + ids + ')' : ''}`);
+      lines.push(`${t.type === 'team' ? '  ' + r.board : i + 1}. ${r.surname} ${r.firstName}${r.title ? ' ' + r.title : ''}, ${r.year || '?'}${r.club ? ', ' + r.club : ''}${ids ? ' (' + ids + ')' : ''}${r.category ? ' – kategorie ' + R.categoryLabel(r.category) : ''}`);
     });
     lines.push('', `Celkem ${R.plural(rows.length, 'hráč', 'hráči', 'hráčů')}.`, '', 'Děkujeme a těšíme se,', clubName());
     if (current.event.contactEmail) lines.push(current.event.contactEmail);
@@ -1166,7 +1180,7 @@
           Odkaz na kalendář rozešlete členům – na otevřené turnaje se přihlásí odtud.</p></div>
         <button type="button" class="link" id="cal-toggle">${showCalendarAll ? 'jen nadcházející' : `zobrazit i proběhlé (${tours.length - upcoming.length})`}</button></div>
       <div class="table-wrap"><table class="admin-table cal-admin">
-        <thead><tr><th>Termín</th><th>Soutěž</th><th>Místo</th><th>Přihlašování</th><th>Uzávěrka</th><th class="num">Přihl.</th></tr></thead>
+        <thead><tr><th>Termín</th><th>Soutěž</th><th>Místo</th><th>Přihlašování</th><th>Uzávěrka</th><th class="num">Přihl.</th><th></th></tr></thead>
         <tbody>${list.map((t) => {
           const st = R.signupState(t);
           return `<tr class="${st.key === 'past' ? 'cancelled-soft' : ''}">
@@ -1179,9 +1193,51 @@
               ${st.key === 'closed' ? '<div class="small muted">po uzávěrce</div>' : ''}</td>
             <td>${t.deadline ? esc(R.formatDate(t.deadline)) : ''}</td>
             <td class="num">${t.count || ''}</td>
+            <td><button type="button" class="link" data-tour-edit="${esc(t.id)}" title="Uzávěrka, poznámka, propozice, kategorie">Upravit</button></td>
           </tr>`;
         }).join('')}</tbody></table></div>
     </section>`;
+  }
+
+  /** Úprava turnaje v kalendáři: uzávěrka, poznámka, propozice, kategorie (bez otevírání editoru akce). */
+  function tourEditDialog(id) {
+    const ev = current.event;
+    const t = ev.tournaments.find((x) => x.id === id);
+    openDialog(`<form class="dialog-form">
+      <h2>${esc(R.tournamentLabel(t))}</h2>
+      <div class="grid">
+        <label>Klubová uzávěrka<input type="date" name="deadline" value="${esc(t.deadline || '')}" ${t.dateFrom ? `max="${esc(t.dateFrom)}"` : ''}>
+          <span class="hint">prázdné = do začátku turnaje</span></label>
+        ${t.type === 'team' ? '' : `<label>Věkové kategorie<input name="categories" value="${esc(R.categoriesOf(t).join(', '))}" placeholder="např. 2016, 2012, 2008">
+          <span class="hint">ročníky „… a mladší“</span></label>`}
+        <label class="wide">Poznámka v kalendáři<textarea name="note" rows="3" maxlength="300">${esc(t.note || '')}</textarea>
+          <span class="hint">Uvidí ji členové v kalendáři i ve formuláři (např. doprava, sraz, kdo jede).</span></label>
+        <label class="wide">Propozice turnaje<input type="url" name="infoUrl" value="${esc(t.infoUrl || '')}" placeholder="https://"></label>
+      </div>
+      <div class="errors" hidden></div>
+      <p class="actions"><button class="primary">Uložit</button><button type="button" data-close>Zrušit</button></p>
+    </form>`, (d) => {
+      $('form', d).addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const f = e.target;
+        const btn = $('button.primary', d);
+        btn.disabled = true;
+        try {
+          const body = { eventId: ev.id, tournamentId: t.id, deadline: f.deadline.value, note: f.note.value, infoUrl: f.infoUrl.value };
+          if (f.categories) body.categories = f.categories.value;
+          const res = await call('setTournamentSignup', body);
+          Object.assign(current.event, res.event);
+          delete memo.event[ev.id];
+          dialog.close();
+          renderEvent();
+        } catch (err) {
+          btn.disabled = false;
+          const box = $('.errors', d);
+          box.textContent = err.message;
+          box.hidden = false;
+        }
+      });
+    });
   }
 
   function signupChange(sel) {
@@ -1208,8 +1264,8 @@
       if (t.deadline) return t.deadline;
       if (!t.dateFrom) return '';
       const d = new Date(t.dateFrom + 'T12:00:00');
-      d.setDate(d.getDate() - 7);
-      const min = new Date(); min.setDate(min.getDate() + 2);
+      d.setDate(d.getDate() - 2);
+      const min = new Date();
       const pick = d < min ? min : d;
       const iso = `${pick.getFullYear()}-${String(pick.getMonth() + 1).padStart(2, '0')}-${String(pick.getDate()).padStart(2, '0')}`;
       return t.dateFrom && iso > t.dateFrom ? t.dateFrom : iso;

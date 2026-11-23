@@ -9,7 +9,7 @@
   function playerRow(p, i) {
     return `<tr>
       <td class="num">${i + 1}.</td>
-      <td>${esc(p.name)}${p.title ? ` <span class="badge">${esc(p.title)}</span>` : ''}</td>
+      <td>${esc(p.name)}${p.title ? ` <span class="badge">${esc(p.title)}</span>` : ''}${p.category ? ` <span class="badge muted-badge" title="${esc(R.categoryLabel(p.category))}">kat. ${esc(p.category)}</span>` : ''}</td>
       <td class="num">${esc(p.year || '')}</td>
       <td>${esc(p.club)}</td>
       <td class="num">${p.rn || ''}</td>

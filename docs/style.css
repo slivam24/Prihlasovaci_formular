@@ -593,3 +593,6 @@ span.cal-ev { cursor: default; }
 .home-toolbar .check { margin: 0; }
 .admin-table tr.cancelled-soft td { color: var(--muted); background: var(--bg); }
 .cal-admin select { min-width: 160px; }
+.t-cat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; font-size: 0.9rem; font-weight: 600; }
+.t-cat select { padding: 4px 8px; font-weight: 400; }
+.t-cat .t-cat-warn { flex-basis: 100%; font-weight: 400; }

@@ -17,6 +17,7 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 **Pro pořadatele** (`admin.html`, přihlášení Google účtem)
 - zakládání a úpravy akcí: termín, uzávěrka, stav, propozice, správci,
 - turnaje v akci: jednotlivci / družstva, povolené ročníky, ELO limit, kapacita, počet šachovnic,
+  **věkové kategorie** v turnaji (např. GP: 2016, 2012, 2008 a mladší – do mladší kategorie hráč nesmí, do starší ano s upozorněním),
   **rating klasický nebo rapid** (u rapid turnaje se ELO ČR a FIDE berou z rapid LOK – pro nasazení, export, slevy i upozornění),
 - doplňující otázky podle akce (doprava, ubytování, strava, …),
 - přihlášky: zrušení / obnovení, úprava, poznámka pořadatele, ruční přidání hráče,
@@ -55,7 +56,7 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - **klubový termínový kalendář** (`kalendar.html?akce=…`): všechny soutěže sezóny včetně dlouhodobých, seznam po měsících
   nebo mřížka, filtry. U každého turnaje stav přihlašování: *otevřené* (tlačítko Přihlásit se), *výpravu nepořádáme*,
   *dlouhodobá soutěž*. Správce ho mění v detailu akce (tabulka Termínový kalendář klubu) – při otevření zadá klubovou
-  uzávěrku. Data ÚKŠS 2026/2027 k importu: `podklady/klubovy_kalendar_2026_2027.json` (Importovat z propozic → načíst soubor).
+  uzávěrku (výchozí 2 dny před turnajem); tlačítkem Upravit doplní poznámku, propozice a kategorie. Data ÚKŠS 2026/2027 k importu: `podklady/klubovy_kalendar_2026_2027.json` (Importovat z propozic → načíst soubor).
 
 ```
 elo.miramal.com (LOK + rapid LOK) ──(GitHub Action, denně)──► data/players.json ──► našeptávač

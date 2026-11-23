@@ -75,6 +75,9 @@
               <span class="t-name">${esc(R.tournamentLabel(t))}</span>
               ${tourInfo(t)}
               ${R.ruleText(t) ? `<span class="t-rule">${esc(R.ruleText(t))}</span>` : ''}
+              ${R.categoriesOf(t).length ? `<span class="t-cat" hidden>Kategorie
+                <select data-cat="${esc(t.id)}">${R.categoriesOf(t).map((c) => `<option value="${c}">${esc(R.categoryLabel(c))}</option>`).join('')}</select>
+                <span class="t-cat-warn t-warn" hidden></span></span>` : ''}
               <span class="t-fee small" hidden></span>
               <span class="t-block" hidden></span>
               <span class="t-warn" hidden></span>
@@ -94,6 +97,7 @@
       i.checked = only || prev.includes(i.value);
       i.addEventListener('change', () => { updateCard(card); updateBulk(); });
     });
+    $$('[data-cat]', el).forEach((sel) => sel.addEventListener('change', () => { sel.dataset.touched = '1'; updateCard(card); }));
     picker.onChange(() => { updateCard(card); updateBulk(); refreshFinder(); });
     $('.remove-player', el).addEventListener('click', () => removeCard(card));
 
@@ -149,6 +153,22 @@
       const w = label.querySelector('.t-warn');
       w.hidden = !warn;
       w.textContent = warn;
+      // věkové kategorie: do mladší nelze, do starší s upozorněním; výchozí je kategorie podle ročníku
+      const catBox = label.querySelector('.t-cat');
+      if (catBox) {
+        const sel = catBox.querySelector('select');
+        catBox.hidden = !input.checked || !!block;
+        const best = R.bestCategory(t, p);
+        Array.from(sel.options).forEach((o) => { o.disabled = !!(p && p.year && p.year < Number(o.value)); });
+        if (!sel.dataset.touched || (sel.selectedOptions[0] && sel.selectedOptions[0].disabled)) {
+          if (best) sel.value = String(best);
+          delete sel.dataset.touched;
+        }
+        const chk = R.categoryCheck(t, p, Number(sel.value));
+        const cw = catBox.querySelector('.t-cat-warn');
+        cw.hidden = !chk.warn;
+        cw.textContent = chk.warn || '';
+      }
       const fee = R.entryFee(t, p || {});
       const f = label.querySelector('.t-fee');
       f.hidden = !fee || !!block;
@@ -576,7 +596,12 @@
   function collect() {
     const base = { slug: ev.slug, mode, email: form.email.value.trim(), extras: collectExtras(), web: form.web.value };
     if (mode === 'individual') {
-      base.players = cards.map((c) => ({ player: c.picker.getValue(), tournaments: checkedIds(c) }));
+      base.players = cards.map((c) => {
+        const ids = checkedIds(c);
+        const categories = {};
+        $$('[data-cat]', c.el).forEach((sel) => { if (ids.includes(sel.dataset.cat)) categories[sel.dataset.cat] = Number(sel.value); });
+        return { player: c.picker.getValue(), tournaments: ids, categories };
+      });
     } else {
       base.teams = teamCards.map((c) => ({
         tournamentId: teamTournamentOf(c).id,
