@@ -47,6 +47,8 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
   e-maily a poznámky se 12 měsíců po akci automaticky mažou,
 - **import akce z propozic přes AI**: tlačítko „Importovat z propozic (AI)“ zkopíruje zadání pro ChatGPT / Clauda,
   odpověď (JSON) se vloží zpět a akce se otevře vyplněná v editoru ke kontrole (formát a převod: `docs/js/import.js`),
+- **sekce se navzájem neovlivňují**: každá má své akce, import a nová akce se zakládají do sekce, ve které jste,
+  pokladní doklady mají oddělené číselné řady (klubová sekce `K2027-0001`),
 - **dvě sekce administrace**: *Pořadatelská sekce* (turnaje, které pořádáte – veřejné na úvodní stránce) a *Klubová sekce*
   (turnaje z kalendáře, na které se členové hlásí klubu – `klub.html`),
 - **role správců**: *hlavní správce* (vše, spravuje správce), *pořadatel* (pořadatelská sekce – akce, které založil nebo

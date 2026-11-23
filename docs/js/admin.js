@@ -369,6 +369,8 @@
         const box = $('.errors', d);
         try {
           pendingImport = EI.parseImport(e.target.json.value);
+          // import v klubové sekci zakládá akci klubové sekce, v pořadatelské sekci pořadatelskou
+          pendingImport.event.kind = eventsTab === 'club' ? 'club' : 'event';
         } catch (err) {
           box.textContent = err.message;
           box.hidden = false;
@@ -698,8 +700,8 @@
             <label>Místo vystavení<input name="issuerPlace" value="${esc(iss.place || '')}" placeholder="např. Chlumec"></label>
             <label class="wide">Adresa (sídlo)<input name="issuerAddress" value="${esc(iss.address || '')}"></label>
             <label>Vystavuje (pokladník)<input name="issuerCashier" value="${esc(iss.cashier || '')}"></label>
-            <label>Řada čísel dokladů<input name="issuerPrefix" value="${esc(iss.prefix || '')}" placeholder="${esc(R.eventYear(ev) + '-')}">
-              <span class="hint">Doklady se číslují ${esc((iss.prefix || R.eventYear(ev) + '-') + '0001')}, …</span></label>
+            <label>Řada čísel dokladů<input name="issuerPrefix" value="${esc(iss.prefix || '')}" placeholder="${esc((ev.kind === 'club' ? 'K' : '') + R.eventYear(ev) + '-')}">
+              <span class="hint">Doklady se číslují ${esc((iss.prefix || (ev.kind === 'club' ? 'K' : '') + R.eventYear(ev) + '-') + '0001')}, …</span></label>
             <label class="wide">Poznámka na dokladu<input name="issuerNote" value="${esc(iss.note || '')}" placeholder="např. Nejsme plátci DPH."></label>
           </div>
         </section>

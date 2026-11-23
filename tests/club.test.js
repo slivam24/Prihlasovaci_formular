@@ -238,3 +238,36 @@ test('role klubový admin: celá klubová sekce, z pořadatelské jen své akce'
   const upd = ca('saveEvent', { event: Object.assign({}, club, { admins: 'trener@k.cz' }) });
   assert.deepEqual(upd.event.admins, ['trener@k.cz']);
 });
+
+test('sekce se neovlivňují: obě vidí své akce, doklady mají vlastní číselné řady', () => {
+  const gas = createGas({ owner: OWNER, seed: true });
+  gas.get({ action: 'events' });
+  const admin = (action, body) => gas.post(Object.assign({ action: 'admin.' + action, idToken: fakeToken(OWNER) }, body));
+  const clubBefore = gas.get({ action: 'events', kind: 'club' }).events.length;
+  const issuer = { name: 'ŠK Chlumec' };
+  const fest = admin('saveEvent', { event: { name: 'Festival Chlumec', place: 'Chlumec', dateFrom: '2027-05-08', dateTo: '2027-05-09', status: 'otevreno',
+    issuer, tournaments: [{ name: 'GP', fee: 100 }] } }).event;
+  assert.equal(gas.get({ action: 'events', kind: 'club' }).events.length, clubBefore, 'pořádaná akce klubovou sekci nemění');
+  assert.ok(gas.get({ action: 'events' }).events.some((e) => e.id === fest.id));
+  const gpClub = gas.get({ action: 'events', kind: 'club' }).events.find((e) => e.name === 'Grand Prix ČR 2026/2027 v rapid šachu');
+  assert.ok(gpClub, 'stejný turnaj zůstává i v klubové sekci');
+  // doklady: každá sekce svou řadou
+  const p = player(1, 'Novák');
+  gas.post({ action: 'register', slug: fest.slug, mode: 'individual', email: 'a@b.cz', player: p, tournaments: [fest.tournaments[0].id] });
+  const clubEv = admin('event', { id: gpClub.id }).event;
+  admin('saveEvent', { event: Object.assign({}, clubEv, { issuer, tournaments: clubEv.tournaments.map((t) => Object.assign({}, t, { fee: 50 })) }) });
+  admin('setTournamentSignup', { eventId: gpClub.id, tournamentId: gpClub.tournaments[0].id, signup: 'open', deadline: '2027-05-06' });
+  const rc = gas.post({ action: 'register', slug: gpClub.slug, mode: 'individual', email: 'a@b.cz', player: p, tournaments: [gpClub.tournaments[0].id] });
+  assert.equal(rc.ok, true, rc.error);
+  const item = (evId) => {
+    const d = admin('event', { id: evId });
+    const r = d.registrations[0];
+    return { key: 'fee:' + r.id, label: 'Startovné', person: 'Novák Jan', amount: d.event.tournaments[0].fee };
+  };
+  const r1 = admin('issueReceipts', { eventId: fest.id, receipts: [{ payer: 'Novák Jan', items: [item(fest.id)] }] });
+  const r2 = admin('issueReceipts', { eventId: gpClub.id, receipts: [{ payer: 'Novák Jan', items: [item(gpClub.id)] }] });
+  assert.equal(r1.ok, true, r1.error);
+  assert.equal(r2.ok, true, r2.error);
+  assert.match(r1.receipts[0].number, /^2027-0001$/);
+  assert.match(r2.receipts[0].number, /^K2027-0001$/);
+});

@@ -1576,7 +1576,8 @@ const ADMIN_ACTIONS = {
         .forEach((r) => parseJson_(r.items, []).forEach((it) => { paid[it.key] = r.number; }));
       const issuer = Object.assign({}, cleanIssuer_(ev.issuer));
       if (!issuer.name) throw userError_('V nastavení akce vyplňte údaje pro doklady (název klubu, IČO, adresa).');
-      const prefix = issuer.prefix || `${eventYear_(ev)}-`;
+      // klubová sekce má vlastní číselnou řadu dokladů (sekce se navzájem neovlivňují)
+      const prefix = issuer.prefix || `${ev.kind === 'club' ? 'K' : ''}${eventYear_(ev)}-`;
       let seq = all.filter((r) => String(r.number).indexOf(prefix) === 0)
         .reduce((m, r) => Math.max(m, toInt_(String(r.number).slice(prefix.length))), 0);
       const now = new Date();
