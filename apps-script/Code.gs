@@ -26,7 +26,7 @@ const SHEETS = {
     name: 'Turnaje',
     cols: ['id', 'eventId', 'order', 'name', 'short', 'day', 'type', 'minBirthYear', 'maxBirthYear',
       'warnMaxRating', 'capacity', 'boards', 'reserves', 'fee', 'feeRules', 'rating',
-      'dateFrom', 'dateTo', 'place', 'deadline', 'infoUrl'],
+      'dateFrom', 'dateTo', 'place', 'deadline', 'infoUrl', 'signup', 'note'],
   },
   registrations: {
     name: 'Přihlášky',
@@ -67,6 +67,9 @@ const RATING_TYPES = ['standard', 'rapid'];
 // Druh akce: běžná akce (turnaj / festival), nebo klubová sekce – hráči se hlásí klubu na turnaje
 // z kalendáře, každý turnaj má vlastní datum, místo a klubovou uzávěrku; akce je dostupná jen přes odkaz.
 const EVENT_KINDS = ['event', 'club'];
+// Přihlašování na turnaj (hlavně v klubovém kalendáři): open = lze se přihlásit,
+// none = klub výpravu nepořádá, league = dlouhodobá soutěž (jen v kalendáři).
+const SIGNUP_TYPES = ['open', 'none', 'league'];
 const MAX_GROUP_PLAYERS = 60;
 const MAX_GROUP_TEAMS = 20;
 const YES = 'ANO';
@@ -268,6 +271,8 @@ function buildEvent_(row, tourRows) {
       place: String(t.place || ''),
       deadline: String(t.deadline || ''),
       infoUrl: String(t.infoUrl || ''),
+      signup: SIGNUP_TYPES.indexOf(t.signup) >= 0 ? t.signup : 'open',
+      note: String(t.note || ''),
     })),
   };
 }
@@ -403,6 +408,8 @@ function sanitizeEvent_(input, existingEvents, currentId) {
       place: clean_(t.place, 150),
       deadline: cleanDate_(t.deadline),
       infoUrl: /^https?:\/\//.test(String(t.infoUrl || '')) ? clean_(t.infoUrl, 300) : '',
+      signup: SIGNUP_TYPES.indexOf(t.signup) >= 0 ? t.signup : 'open',
+      note: clean_(t.note, 300),
       feeRules: type === 'team' ? [] : (Array.isArray(t.feeRules) ? t.feeRules : []).slice(0, 10).map((r) => {
         const rt = FEE_RULE_TYPES.indexOf(r && r.type) >= 0 ? r.type : '';
         const price = cleanPrice_(r && r.price);
@@ -576,6 +583,7 @@ function processRegistration_(data, ev, existing, now, opts) {
       if (!tours.length) return fail(multi ? `${fullName_(p)}: vyberte alespoň jeden turnaj.` : 'Vyberte alespoň jeden turnaj.');
       for (const t of tours) {
         const label = t.short || t.name;
+        if (!admin && t.signup !== 'open') return fail(`Na turnaj „${label}“ se přes klub nepřihlašuje.`);
         if (!admin && tournamentClosed_(t, now)) return fail(`Přihlašování na turnaj „${label}“ je už uzavřené.`);
         const block = eligibility_(t, p);
         if (block && !admin) return fail(`${fullName_(p)}: turnaj „${label}“ je ${block}.`);
@@ -785,6 +793,7 @@ function eligibility_(t, p) {
  * Turnaje bez vlastního data (běžné akce) se řídí jen uzávěrkou akce.
  */
 function tournamentClosed_(t, now) {
+  if (t.signup && t.signup !== 'open') return true;
   if (t.deadline) {
     const end = new Date(t.deadline + 'T23:59:59');
     return !isNaN(end.getTime()) && now > end;
@@ -1587,6 +1596,33 @@ const ADMIN_ACTIONS = {
       update_('registrations', row);
       logChanges_(ev, row.applicationId, logs, user.email, now);
       return { registration: stripRow_(row), changes: table_('changes').rows.filter((c) => c.eventId === ev.id).map(stripRow_) };
+    });
+  },
+
+  /** Klubový kalendář: otevřít / zavřít přihlašování na turnaj, případně změnit klubovou uzávěrku. */
+  setTournamentSignup(body, user) {
+    const ev = loadEventById_(body.eventId);
+    assertCanEdit_(user, ev);
+    return withLock_(() => {
+      const row = table_('tournaments').rows.find((r) => r.id === String(body.tournamentId) && r.eventId === ev.id);
+      if (!row) throw userError_('Turnaj nebyl nalezen.');
+      const signup = SIGNUP_TYPES.indexOf(body.signup) >= 0 ? body.signup : 'open';
+      const before = SIGNUP_TYPES.indexOf(row.signup) >= 0 ? row.signup : 'open';
+      row.signup = signup;
+      if ('deadline' in body) {
+        const d = cleanDate_(body.deadline);
+        if (body.deadline && !d) throw userError_('Uzávěrka musí být datum.');
+        if (d && row.dateFrom && d > String(row.dateFrom)) throw userError_('Uzávěrka je až po začátku turnaje.');
+        row.deadline = d;
+      }
+      update_('tournaments', row);
+      const labels = { open: 'přihlašování otevřeno', none: 'výpravu nepořádáme', league: 'dlouhodobá soutěž' };
+      logChanges_(ev, '', [{
+        action: 'stav turnaje',
+        detail: `${row.short || row.name}: ${labels[before]} → ${labels[signup]}${row.deadline ? ', uzávěrka ' + fmtDate_(row.deadline) : ''}`,
+      }], user.email, new Date());
+      clearPublicCache_();
+      return { event: adminEventView_(loadEventById_(ev.id), table_('registrations').rows.filter((r) => r.eventId === ev.id)) };
     });
   },
 

@@ -73,6 +73,7 @@
   /** Uzavřený turnaj: po vlastní uzávěrce (do konce dne), bez uzávěrky od dne začátku. */
   function tournamentClosed(t, now) {
     now = now || new Date();
+    if (t.signup && t.signup !== 'open') return true;
     if (t.deadline) return now > new Date(t.deadline + 'T23:59:59');
     if (t.dateFrom) return now >= new Date(t.dateFrom + 'T00:00:00');
     return false;
@@ -88,6 +89,18 @@
   function byDate(list) {
     return list.map((t, i) => ({ t, i })).sort((a, b) =>
       String(a.t.dateFrom || '9999').localeCompare(String(b.t.dateFrom || '9999')) || a.i - b.i).map((x) => x.t);
+  }
+
+  const SIGNUP_LABELS = { open: 'přihlašování přes klub', none: 'výpravu nepořádáme', league: 'dlouhodobá soutěž' };
+
+  /** Stav turnaje v klubovém kalendáři: {key, text} – proběhlo / dlouhodobá / nepořádáme / uzavřeno / otevřeno. */
+  function signupState(t, now) {
+    now = now || new Date();
+    if (tournamentPast(t, now)) return { key: 'past', text: 'proběhlo' };
+    if (t.signup === 'league') return { key: 'league', text: 'dlouhodobá soutěž' };
+    if (t.signup === 'none') return { key: 'none', text: 'výpravu nepořádáme' };
+    if (tournamentClosed(t, now)) return { key: 'closed', text: 'přihlašování uzavřeno' };
+    return { key: 'open', text: t.deadline ? 'přihlášky do ' + formatDate(t.deadline).replace(/ \d{4}$/, '') : 'přihlašování otevřeno' };
   }
 
   const EVENT_KINDS = { event: 'turnaj nebo festival', club: 'klubová sekce (přihlášky do klubu, jen přes odkaz)' };
@@ -222,7 +235,7 @@
     plural, teamSize,
     formatMoney, optionPrice, extraPrice, extraText, extrasTotal,
     norm, eventYear, isClosed, ruleText, eligibility, ratingWarning, samePlayer,
-    tournamentLabel, tournamentClosed, tournamentPast, byDate, EVENT_KINDS, STATUS_LABELS, formatDate, formatRange,
+    tournamentLabel, tournamentClosed, tournamentPast, byDate, EVENT_KINDS, SIGNUP_LABELS, signupState, STATUS_LABELS, formatDate, formatRange,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.Rules = api;

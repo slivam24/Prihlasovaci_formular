@@ -30,7 +30,16 @@
 
     const out = [];
     const toc = [];
-    ev.tournaments.forEach((t) => {
+    // klubový kalendář: jen turnaje, kam se přes klub přihlašuje, nebo kde už někdo je; podle data
+    const count = (t) => (t.type === 'team' ? (data.teams[t.id] || []).length : (data.tournaments[t.id] || []).length);
+    const tours = ev.kind === 'club'
+      ? R.byDate(ev.tournaments.filter((t) => count(t) || ((t.signup || 'open') === 'open' && !R.tournamentPast(t))))
+      : ev.tournaments;
+    if (ev.kind === 'club' && !$('#calendar-link')) {
+      const cal = $('#form-link');
+      cal.insertAdjacentHTML('afterend', ` <a id="calendar-link" href="kalendar.html?akce=${encodeURIComponent(ev.slug)}">Termínový kalendář klubu</a>`);
+    }
+    tours.forEach((t) => {
       const anchor = 't-' + t.id;
       const cap = t.capacity ? ' / ' + t.capacity : '';
       if (t.type === 'team') {
@@ -51,7 +60,7 @@
         </section>`);
       }
     });
-    if (ev.tournaments.length > 1) {
+    if (tours.length > 1) {
       $('#toc').innerHTML = toc.join('');
       $('#toc').hidden = false;
     }

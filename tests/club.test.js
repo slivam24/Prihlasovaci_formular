@@ -86,3 +86,32 @@ test('import: klubová sekce s turnaji z kalendáře', () => {
   assert.deepEqual([event.tournaments[0].dateFrom, event.tournaments[0].place, event.tournaments[0].deadline], ['2026-09-19', 'Srbice', '2026-09-12']);
   assert.deepEqual(warnings, []);
 });
+
+test('klubový kalendář 2026/2027 (podklady) projde importem a uložením', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const text = fs.readFileSync(path.join(__dirname, '../podklady/klubovy_kalendar_2026_2027.json'), 'utf8');
+  const { event, warnings } = parseImport(text);
+  assert.deepEqual(warnings, []);
+  assert.equal(event.kind, 'club');
+  const gas = createGas({ owner: OWNER });
+  const res = gas.post({ action: 'admin.saveEvent', idToken: fakeToken(OWNER), event: Object.assign(event, { status: 'otevreno' }) });
+  assert.equal(res.ok, true, res.error);
+  const tours = res.event.tournaments;
+  assert.equal(tours.length, 121);
+  const count = (k) => tours.filter((t) => t.signup === k).length;
+  assert.deepEqual([count('open'), count('none'), count('league')], [7, 57, 57]);
+  const gp = tours.find((t) => t.name === '3. turnaj GP Ústeckého kraje');
+  assert.deepEqual([gp.rating, gp.minBirthYear, gp.place, gp.signup], ['rapid', 2008, 'Štětí', 'open']);
+  // přihláška na turnaj bez výpravy neprojde, na otevřený ano
+  const p = { registered: true, id: 1, surname: 'Malý', firstName: 'Jan', year: 2014, rn: 1200, rf: 0, club: 'K', fed: 'CZE' };
+  const none = tours.find((t) => t.signup === 'none' && t.dateFrom > '2027-01-01');
+  assert.match(gas.post({ action: 'register', slug: res.event.slug, mode: 'individual', email: 'a@b.cz', player: p, tournaments: [none.id] }).error, /nepřihlašuje/);
+  assert.equal(gas.post({ action: 'register', slug: res.event.slug, mode: 'individual', email: 'a@b.cz', player: p, tournaments: [gp.id] }).ok, true);
+  // správce otevře přihlašování
+  const opened = gas.post({ action: 'admin.setTournamentSignup', idToken: fakeToken(OWNER), eventId: res.event.id, tournamentId: none.id, signup: 'open', deadline: none.dateFrom });
+  assert.equal(opened.ok, true, opened.error);
+  assert.equal(opened.event.tournaments.find((t) => t.id === none.id).signup, 'open');
+  assert.equal(gas.post({ action: 'register', slug: res.event.slug, mode: 'individual', email: 'a@b.cz', player: Object.assign({}, p, { id: 2, surname: 'Velký' }), tournaments: [none.id] }).ok, true);
+  assert.match(gas.post({ action: 'admin.setTournamentSignup', idToken: fakeToken(OWNER), eventId: res.event.id, tournamentId: none.id, signup: 'open', deadline: '2099-01-01' }).error, /po začátku/);
+});

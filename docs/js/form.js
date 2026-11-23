@@ -22,7 +22,11 @@
 
   // klubová sekce: turnaje podle data, už skončené se nenabízejí
   const isClub = () => ev && ev.kind === 'club';
-  const offered = () => (isClub() ? R.byDate(ev.tournaments.filter((t) => !R.tournamentPast(t))) : ev.tournaments);
+  // v klubovém kalendáři jen turnaje s otevřeným přihlašováním přes klub
+  const offered = () => (isClub()
+    ? R.byDate(ev.tournaments.filter((t) => !R.tournamentPast(t) && (t.signup || 'open') === 'open'))
+    : ev.tournaments);
+  const preselect = new URLSearchParams(location.search).get('turnaj');
   const individualTournaments = () => offered().filter((t) => t.type !== 'team');
   const teamTournaments = () => offered().filter((t) => t.type === 'team' && !(isClub() && R.tournamentClosed(t)));
   const tShort = (t) => t.short || t.name;
@@ -84,7 +88,7 @@
     const card = { el, picker };
     cards.push(card);
 
-    const prev = copyFrom ? checkedIds(copyFrom) : [];
+    const prev = copyFrom ? checkedIds(copyFrom) : (preselect ? [preselect] : []);
     const only = individualTournaments().length === 1;
     $$('.tournament input', el).forEach((i) => {
       i.checked = only || prev.includes(i.value);
@@ -125,7 +129,8 @@
     if (t.place) parts.push(esc(t.place));
     if (t.deadline) parts.push('přihlásit do ' + esc(R.formatDate(t.deadline)));
     if (t.infoUrl) parts.push(`<a href="${esc(t.infoUrl)}" target="_blank" rel="noopener">propozice</a>`);
-    return parts.length ? `<span class="t-rule">${parts.join(' · ')}</span>` : '';
+    return (parts.length ? `<span class="t-rule">${parts.join(' · ')}</span>` : '') +
+      (t.note ? `<span class="t-rule">${esc(t.note)}</span>` : '');
   }
 
   function updateCard(card) {
@@ -681,8 +686,19 @@
   function start() {
     $('#loading').hidden = true;
     renderHeader();
+    if (isClub()) {
+      const cal = $('#calendar-link');
+      cal.href = 'kalendar.html?akce=' + encodeURIComponent(ev.slug);
+      cal.hidden = false;
+    }
     if (R.isClosed(ev)) {
       $('#closed').textContent = 'Přihlašování na tuto akci je uzavřeno.';
+      $('#closed').hidden = false;
+      return;
+    }
+    if (isClub() && !offered().some((t) => !R.tournamentClosed(t))) {
+      $('#closed').innerHTML = `Momentálně není otevřené přihlašování na žádný turnaj.
+        <a href="kalendar.html?akce=${encodeURIComponent(ev.slug)}">Termínový kalendář klubu</a>`;
       $('#closed').hidden = false;
       return;
     }

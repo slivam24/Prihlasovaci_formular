@@ -52,6 +52,10 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
   a propozice; turnaj se po uzávěrce zavře, proběhlé se nenabízejí. U turnaje je export **pro pořadatele** (Excel
   a text do e-mailu) i pro Swiss-Manager. Plný přístup mají správci uvedení v poli „Správci klubové sekce“
   (musí být v seznamu správců jako pořadatel).
+- **klubový termínový kalendář** (`kalendar.html?akce=…`): všechny soutěže sezóny včetně dlouhodobých, seznam po měsících
+  nebo mřížka, filtry. U každého turnaje stav přihlašování: *otevřené* (tlačítko Přihlásit se), *výpravu nepořádáme*,
+  *dlouhodobá soutěž*. Správce ho mění v detailu akce (tabulka Termínový kalendář klubu) – při otevření zadá klubovou
+  uzávěrku. Data ÚKŠS 2026/2027 k importu: `podklady/klubovy_kalendar_2026_2027.json` (Importovat z propozic → načíst soubor).
 
 ```
 elo.miramal.com (LOK + rapid LOK) ──(GitHub Action, denně)──► data/players.json ──► našeptávač

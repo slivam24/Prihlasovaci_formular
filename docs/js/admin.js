@@ -275,6 +275,7 @@
         </li>
         <li>Odpověď AI (JSON) vložte sem:
           <textarea name="json" rows="10" placeholder='{ "name": "…", "dateFrom": "…", "tournaments": [ … ] }' spellcheck="false"></textarea>
+          <label class="small">…nebo načtěte soubor .json <input type="file" name="file" accept=".json,application/json,text/plain"></label>
         </li>
         <li>Akce se otevře v editoru. <strong>Zkontrolujete údaje</strong> a teprve pak ji uložíte.</li>
       </ol>
@@ -291,6 +292,10 @@
           document.execCommand('copy');
         }
         $('#copy-state', d).textContent = 'Zkopírováno ✓';
+      });
+      $('[name="file"]', d).addEventListener('change', async (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) $('[name="json"]', d).value = await f.text();
       });
       $('form', d).addEventListener('submit', (e) => {
         e.preventDefault();
@@ -403,6 +408,8 @@
         <label class="club-only">Místo<input data-f="place" value="${esc(t.place || '')}" placeholder="např. Teplice"></label>
         <label class="club-only">Klubová uzávěrka<input type="date" data-f="deadline" value="${esc(t.deadline || '')}"><span class="hint">do kdy se hlásit klubu; prázdné = do začátku turnaje</span></label>
         <label class="club-only wide">Propozice turnaje<input type="url" data-f="infoUrl" value="${esc(t.infoUrl || '')}" placeholder="https://"></label>
+        <label class="club-only">Přihlašování<select data-f="signup">${options(R.SIGNUP_LABELS, t.signup || 'open')}</select></label>
+        <label class="club-only wide">Poznámka v kalendáři<input data-f="note" value="${esc(t.note || '')}" placeholder="např. kategorie 2008, 2012 a 2016 a mladší"></label>
         <label>Typ<select data-f="type">${options(TYPE_LABELS, t.type)}</select></label>
         <label>Rating<select data-f="rating">${options(R.RATING_LABELS, t.rating || 'standard')}</select>
           <span class="hint">ELO ČR a FIDE pro nasazení, export a slevy</span></label>
@@ -671,6 +678,7 @@
           id: c.dataset.id || undefined,
           name: val(c, 'name'), short: val(c, 'short'), day: val(c, 'day'), type: val(c, 'type'), rating: val(c, 'rating'),
           dateFrom: val(c, 'dateFrom'), dateTo: val(c, 'dateTo'), place: val(c, 'place'), deadline: val(c, 'deadline'), infoUrl: val(c, 'infoUrl'),
+          signup: val(c, 'signup') || 'open', note: val(c, 'note'),
           minBirthYear: val(c, 'minBirthYear'), maxBirthYear: val(c, 'maxBirthYear'),
           warnMaxRating: val(c, 'warnMaxRating'), capacity: val(c, 'capacity'),
           boards: val(c, 'boards'), reserves: val(c, 'reserves'), fee: val(c, 'fee'),
@@ -858,7 +866,11 @@
 
   function renderEvent() {
     const ev = current.event;
-    const tourList = ev.kind === 'club' ? R.byDate(ev.tournaments) : ev.tournaments;
+    const club = ev.kind === 'club';
+    const allTours = club ? R.byDate(ev.tournaments) : ev.tournaments;
+    // klubový kalendář: karty s přihláškami jen u turnajů s otevřeným přihlašováním nebo s přihlášenými
+    const tourList = club ? allTours.filter((t) => (t.signup || 'open') === 'open' || t.count) : allTours;
+    const calendarUrl = `kalendar.html?akce=${encodeURIComponent(ev.slug)}`;
     const publicUrl = `prihlaska.html?akce=${encodeURIComponent(ev.slug)}`;
     const listUrl = `seznam.html?akce=${encodeURIComponent(ev.slug)}`;
     const canOpen = ev.status !== 'otevreno';
@@ -879,15 +891,15 @@
         </div>
       </div>
       <p class="links">
+        ${club ? `<a href="${calendarUrl}" target="_blank">Termínový kalendář ↗</a>` : ''}
         <a href="${publicUrl}" target="_blank">Formulář ↗</a>
         <a href="${listUrl}" target="_blank">Veřejný seznam ↗</a>
-        <button type="button" class="link" id="copy-link">Zkopírovat odkaz na formulář</button>
+        <button type="button" class="link" id="copy-link">Zkopírovat odkaz na ${club ? 'kalendář' : 'formulář'}</button>
       </p>
       ${ev.status === 'koncept' ? '<p class="notice-inline">Akce je rozpracovaná – formulář ani seznam zatím nejsou veřejné.</p>' : ''}
       ${systemNotice(current.system)}
 
-      ${ev.kind === 'club' ? `<p class="small muted">Klubová sekce – není v přehledu akcí, odkaz na formulář rozešlete členům.
-        U každého turnaje je export pro pořadatele (Excel nebo text do e-mailu).</p>` : ''}
+      ${club ? clubCalendarSection(allTours) : ''}
       ${tourList.length > 1 ? `<nav class="jump" aria-label="Turnaje akce"><span class="small muted">Přejít na:</span>${tourList.map((t) =>
         `<button type="button" class="chip" data-jump="t-${esc(t.id)}">${esc(t.short || t.name)} <strong>${t.count}</strong></button>`).join('')}</nav>` : ''}
 
@@ -930,6 +942,11 @@
       ${changesSection()}`;
 
     $('#show-cancelled').addEventListener('change', (e) => { showCancelled = e.target.checked; renderEvent(); });
+    $$('[data-jump-card]').forEach((a) => a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const el = document.getElementById(a.dataset.jumpCard);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
     document.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => {
       const el = document.getElementById(b.dataset.jump);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -937,7 +954,7 @@
     const allChanges = $('#all-changes');
     if (allChanges) allChanges.addEventListener('click', () => { showAllChanges = true; renderEvent(); });
     $('#copy-link').addEventListener('click', () => {
-      const url = new URL(publicUrl, location.href).toString();
+      const url = new URL(club ? calendarUrl : publicUrl, location.href).toString();
       navigator.clipboard.writeText(url).then(() => { $('#copy-link').textContent = 'Zkopírováno ✓'; });
     });
     $('#toggle-status').addEventListener('click', async () => {
@@ -953,6 +970,9 @@
     $('#export-all').addEventListener('click', exportAll);
     $('#recalc-ratings').addEventListener('click', recalcRatingsDialog);
     $$('[data-org-xlsx]').forEach((b) => b.addEventListener('click', () => exportForOrganizer(b.dataset.orgXlsx)));
+    $$('[data-signup]').forEach((sel) => sel.addEventListener('change', () => signupChange(sel)));
+    const calToggle = $('#cal-toggle');
+    if (calToggle) calToggle.addEventListener('click', () => { showCalendarAll = !showCalendarAll; renderEvent(); });
     $$('[data-org-text]').forEach((b) => b.addEventListener('click', () => organizerTextDialog(b.dataset.orgText)));
     $$('[data-export-txt]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportTxt, 'txt', b.dataset.part)));
     $$('[data-export-xlsx]').forEach((b) => b.addEventListener('click', () => exportTournament(b.dataset.exportXlsx, 'xlsx')));
@@ -1128,6 +1148,87 @@
         const text = $('#org-text', d).value;
         navigator.clipboard.writeText(text).then(() => { $('#org-copy', d).textContent = 'Zkopírováno ✓'; },
           () => { $('#org-text', d).select(); document.execCommand('copy'); $('#org-copy', d).textContent = 'Zkopírováno ✓'; });
+      });
+    });
+  }
+
+  // ---- klubový kalendář: přehled všech soutěží a otevírání přihlašování ----
+
+  let showCalendarAll = false;
+
+  function clubCalendarSection(tours) {
+    const upcoming = tours.filter((t) => !R.tournamentPast(t));
+    const list = showCalendarAll ? tours : upcoming;
+    const openCount = tours.filter((t) => R.signupState(t).key === 'open').length;
+    return `<section class="card">
+      <div class="page-head"><div><h2>Termínový kalendář klubu</h2>
+        <p class="small muted">${R.plural(tours.length, 'soutěž', 'soutěže', 'soutěží')}, přihlašování otevřeno u ${openCount}.
+          Odkaz na kalendář rozešlete členům – na otevřené turnaje se přihlásí odtud.</p></div>
+        <button type="button" class="link" id="cal-toggle">${showCalendarAll ? 'jen nadcházející' : `zobrazit i proběhlé (${tours.length - upcoming.length})`}</button></div>
+      <div class="table-wrap"><table class="admin-table cal-admin">
+        <thead><tr><th>Termín</th><th>Soutěž</th><th>Místo</th><th>Přihlašování</th><th>Uzávěrka</th><th class="num">Přihl.</th></tr></thead>
+        <tbody>${list.map((t) => {
+          const st = R.signupState(t);
+          return `<tr class="${st.key === 'past' ? 'cancelled-soft' : ''}">
+            <td>${esc(R.formatRange(t.dateFrom, t.dateTo) || '—')}</td>
+            <td>${t.count || (t.signup || 'open') === 'open' ? `<a href="#" data-jump-card="t-${esc(t.id)}">${esc(t.name)}</a>` : esc(t.name)}
+              ${t.note ? `<div class="small muted">${esc(t.note)}</div>` : ''}</td>
+            <td>${esc(t.place || '')}</td>
+            <td><select data-signup="${esc(t.id)}" aria-label="Přihlašování na ${esc(t.name)}">${Object.keys(R.SIGNUP_LABELS).map((k) =>
+              `<option value="${k}"${(t.signup || 'open') === k ? ' selected' : ''}>${esc(k === 'open' ? 'otevřené' : R.SIGNUP_LABELS[k])}</option>`).join('')}</select>
+              ${st.key === 'closed' ? '<div class="small muted">po uzávěrce</div>' : ''}</td>
+            <td>${t.deadline ? esc(R.formatDate(t.deadline)) : ''}</td>
+            <td class="num">${t.count || ''}</td>
+          </tr>`;
+        }).join('')}</tbody></table></div>
+    </section>`;
+  }
+
+  function signupChange(sel) {
+    const ev = current.event;
+    const t = ev.tournaments.find((x) => x.id === sel.dataset.signup);
+    const prev = t.signup || 'open';
+    const value = sel.value;
+    const save = async (body) => {
+      sel.disabled = true;
+      try {
+        const res = await call('setTournamentSignup', Object.assign({ eventId: ev.id, tournamentId: t.id, signup: value }, body || {}));
+        Object.assign(current.event, res.event);
+        delete memo.event[ev.id];
+        renderEvent();
+      } catch (e) {
+        alert(e.message);
+        sel.value = prev;
+        sel.disabled = false;
+      }
+    };
+    if (value !== 'open') { save(); return; }
+    // otevření: zeptat se na klubovou uzávěrku (výchozí týden před turnajem, nejdřív za 2 dny)
+    const suggest = (() => {
+      if (t.deadline) return t.deadline;
+      if (!t.dateFrom) return '';
+      const d = new Date(t.dateFrom + 'T12:00:00');
+      d.setDate(d.getDate() - 7);
+      const min = new Date(); min.setDate(min.getDate() + 2);
+      const pick = d < min ? min : d;
+      const iso = `${pick.getFullYear()}-${String(pick.getMonth() + 1).padStart(2, '0')}-${String(pick.getDate()).padStart(2, '0')}`;
+      return t.dateFrom && iso > t.dateFrom ? t.dateFrom : iso;
+    })();
+    openDialog(`<form class="dialog-form">
+      <h2>Otevřít přihlašování</h2>
+      <p><strong>${esc(R.tournamentLabel(t))}</strong>${t.place ? ', ' + esc(t.place) : ''}</p>
+      <label class="block">Klubová uzávěrka<input type="date" name="deadline" value="${esc(suggest)}" ${t.dateFrom ? `max="${esc(t.dateFrom)}"` : ''}>
+        <span class="hint">Do kdy se mají hráči přihlásit klubu. Prázdné = do začátku turnaje.</span></label>
+      <p class="actions"><button class="primary">Otevřít přihlašování</button><button type="button" data-close>Zrušit</button></p>
+    </form>`, (d) => {
+      d.addEventListener('close', () => { if (!sel.disabled) sel.value = prev; }, { once: true });
+      $('form', d).addEventListener('submit', (e) => {
+        e.preventDefault();
+        const deadline = e.target.deadline.value;
+        sel.disabled = true;
+        dialog.close();
+        sel.disabled = false;
+        save({ deadline });
       });
     });
   }

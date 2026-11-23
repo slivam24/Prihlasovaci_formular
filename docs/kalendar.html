@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Termínový kalendář</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container home">
+    <header class="hero">
+      <h1 id="event-name">Termínový kalendář</h1>
+      <p id="event-intro" class="muted"></p>
+      <p class="links"><a id="form-link" class="button primary small-btn" href="prihlaska.html">Přihlásit se na turnaj</a>
+        <a id="list-link" href="seznam.html">Seznam přihlášených</a></p>
+    </header>
+    <div id="loading" class="loader-card card" role="status"><span class="spinner" aria-hidden="true"></span><span>Načítám kalendář…</span></div>
+    <p id="status" class="muted" hidden></p>
+    <div id="toolbar" class="home-toolbar" hidden>
+      <div class="seg" role="group" aria-label="Zobrazení">
+        <button type="button" data-view="list" aria-pressed="true">Seznam</button>
+        <button type="button" data-view="calendar" aria-pressed="false">Kalendář</button>
+      </div>
+      <div class="seg" role="group" aria-label="Filtr">
+        <button type="button" data-filter="all" aria-pressed="true">Vše</button>
+        <button type="button" data-filter="open" aria-pressed="false">Přihlašování otevřeno</button>
+        <button type="button" data-filter="tournaments" aria-pressed="false">Bez dlouhodobých</button>
+      </div>
+      <label class="check"><input type="checkbox" id="show-past"> i proběhlé</label>
+      <label class="home-search"><span class="hp">Hledat</span>
+        <input id="search" type="search" placeholder="Hledat turnaj nebo místo…" autocomplete="off"></label>
+    </div>
+    <div id="events"></div>
+    <footer class="footer links"><a id="privacy-link" href="ochrana-udaju.html" class="muted">Zpracování osobních údajů</a></footer>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/picker.js"></script>
+  <script src="js/kalendar.js"></script>
+</body>
+</html>

@@ -160,6 +160,8 @@ Pravidla:
         tour.place = str(t.place, 150);
         tour.infoUrl = /^https?:\/\//.test(String(t.infoUrl || '')) ? str(t.infoUrl, 300) : '';
       }
+      if (['open', 'none', 'league'].includes(t.signup)) tour.signup = t.signup;
+      if (t.note) tour.note = str(t.note, 300);
       const fee = parseFloat(String(t.fee == null ? '' : t.fee).replace(/[^\d.,]/g, '').replace(',', '.'));
       tour.fee = isNaN(fee) ? null : fee;
       tour.feeRules = type === 'team' || !Array.isArray(t.feeRules) ? [] : t.feeRules
