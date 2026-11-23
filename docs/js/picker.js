@@ -14,6 +14,7 @@
     const parts = [];
     parts.push(p.rn ? 'ELO ČR ' + p.rn : 'bez ELO ČR');
     if (p.rf) parts.push('FIDE ' + p.rf);
+    if (p.rnr || p.rfr) parts.push('rapid ' + [p.rnr || '–', p.rfr ? 'FIDE ' + p.rfr : ''].filter(Boolean).join(' / '));
     return parts.join(' · ');
   }
 

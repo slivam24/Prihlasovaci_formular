@@ -570,3 +570,6 @@ section > .step-title { margin-bottom: 4px; }
 @media (max-width: 640px) {
   .cal-cell.single .cal-ev { height: auto; min-height: 14px; -webkit-line-clamp: unset; }
 }
+
+.finder-clubs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.finder-clubs .chip { text-align: left; }

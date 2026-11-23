@@ -13,7 +13,7 @@
     intro: 'Prezence do 9:30, start 1. kola v 10:00.',
     contactEmail: '',
     tournaments: [
-      { name: 'Open rapid – Grand Prix ČR', short: 'Rapid', day: 'sobota', type: 'individual', minBirthYear: null, maxBirthYear: null, warnMaxRating: null, capacity: null,
+      { name: 'Open rapid – Grand Prix ČR', short: 'Rapid', day: 'sobota', type: 'individual', rating: 'rapid', minBirthYear: null, maxBirthYear: null, warnMaxRating: null, capacity: null,
         fee: 250, feeRules: [{ type: 'women', value: '', price: 200 }, { type: 'youth', value: 2008, price: 150 }, { type: 'titles', value: 'GM, IM', price: 0 }] },
       { name: 'Turnaj mladších žáků', short: 'Žáci', day: 'sobota', type: 'individual', minBirthYear: 2015, maxBirthYear: null, warnMaxRating: null, capacity: null },
       { name: 'Turnaj neregistrovaných a hráčů do ELO 1100', short: 'Neregistrovaní', day: 'sobota', type: 'individual', minBirthYear: null, maxBirthYear: 2014, warnMaxRating: 1100, capacity: null },
@@ -42,6 +42,7 @@ Pravidla:
   - "name": plný název turnaje, "short": krátký název do 20 znaků (např. "Rapid", "Blesk", "Žáci"), "day": den v týdnu malými písmeny česky ("pátek", "sobota", …) nebo "".
   - "type": "individual" pro turnaj jednotlivců, "team" pro soutěž družstev. U družstev "boards" = počet šachovnic, "reserves" = počet náhradníků.
   - "minBirthYear": nejstarší povolený ročník u turnajů pro mládež ("2015 a mladší" → 2015). "maxBirthYear": nejmladší povolený ročník ("2014 a starší" → 2014). Jinak null.
+  - "rating": "rapid" pro rapid turnaje (rapid šach, Grand Prix v rapidu, zápočet na rapid LOK), jinak "standard" (klasický šach, bleskový šach).
   - "warnMaxRating": horní limit ELO, pokud turnaj je jen pro hráče do určitého ELO, jinak null.
   - "capacity": maximální počet hráčů (u družstev počet družstev), pokud je uveden, jinak null.
   - "fee": startovné v Kč (u družstev za družstvo), jinak null. "feeRules": slevy ze startovného jako [{ "type", "value", "price" }]:
@@ -148,6 +149,7 @@ Pravidla:
         maxBirthYear: toInt(t.maxBirthYear, 1900, 2100),
         warnMaxRating: toInt(t.warnMaxRating, 1, 3500),
         capacity: toInt(t.capacity, 1, 10000),
+        rating: t.rating === 'rapid' ? 'rapid' : 'standard',
       };
       const fee = parseFloat(String(t.fee == null ? '' : t.fee).replace(/[^\d.,]/g, '').replace(',', '.'));
       tour.fee = isNaN(fee) ? null : fee;

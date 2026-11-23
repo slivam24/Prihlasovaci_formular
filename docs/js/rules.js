@@ -37,12 +37,25 @@
     return '';
   }
 
+  /**
+   * Hráč s ratingem, který turnaj používá: u rapid turnaje rapid ELO ČR a FIDE rapid (rnr / rfr z rapid LOK).
+   * Uložené řádky přihlášek už mají rating podle turnaje (rnr / rfr nemají), ty se nemění.
+   */
+  function rated(t, p) {
+    if (!p || !t || t.rating !== 'rapid' || (p.rnr == null && p.rfr == null)) return p;
+    return Object.assign({}, p, { rn: p.rnr || 0, rf: p.rfr || 0 });
+  }
+
+  const RATING_LABELS = { standard: 'klasický (LOK)', rapid: 'rapid (rapid LOK)' };
+
   /** Nevynucované podmínky (ELO) – jen text upozornění. */
   function ratingWarning(t, p) {
+    p = rated(t, p);
     if (!t.warnMaxRating || !p) return '';
     const r = Math.max(p.rn || 0, p.rf || 0);
     if (r <= t.warnMaxRating) return '';
-    const has = [p.rn ? 'ELO ČR ' + p.rn : '', p.rf ? 'FIDE ' + p.rf : ''].filter(Boolean).join(' / ');
+    const pre = t.rating === 'rapid' ? 'rapid ' : '';
+    const has = [p.rn ? pre + 'ELO ČR ' + p.rn : '', p.rf ? 'FIDE ' + pre + p.rf : ''].filter(Boolean).join(' / ');
     return `Pozor: hráč má ${has}, turnaj je určen pro hráče do ELO ${t.warnMaxRating}. Přihlášku posoudí pořadatel.`;
   }
 
@@ -156,6 +169,7 @@
    */
   function entryFee(t, p) {
     if (typeof t.fee !== 'number') return null;
+    p = rated(t, p);
     let best = { amount: t.fee, reason: '' };
     if (t.type !== 'team') {
       (t.feeRules || []).forEach((r) => {
@@ -179,6 +193,7 @@
   }
 
   const api = {
+    rated, RATING_LABELS,
     FEE_RULE_TYPES, feeRuleText, feeRuleMatches, entryFee,
     plural, teamSize,
     formatMoney, optionPrice, extraPrice, extraText, extrasTotal,

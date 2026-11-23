@@ -17,6 +17,7 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 **Pro pořadatele** (`admin.html`, přihlášení Google účtem)
 - zakládání a úpravy akcí: termín, uzávěrka, stav, propozice, správci,
 - turnaje v akci: jednotlivci / družstva, povolené ročníky, ELO limit, kapacita, počet šachovnic,
+  **rating klasický nebo rapid** (u rapid turnaje se ELO ČR a FIDE berou z rapid LOK – pro nasazení, export, slevy i upozornění),
 - doplňující otázky podle akce (doprava, ubytování, strava, …),
 - přihlášky: zrušení / obnovení, úprava, poznámka pořadatele, ruční přidání hráče,
 - **export pro Swiss-Manager** (.TXT a .xlsx) pro každý turnaj zvlášť, export všech přihlášek do Excelu,
@@ -46,7 +47,7 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - **správci**: hlavní správce přidává pořadatele z dalších klubů, ti vidí jen své akce.
 
 ```
-elo.miramal.com ──(GitHub Action, denně)──► data/players.json ──► našeptávač
+elo.miramal.com (LOK + rapid LOK) ──(GitHub Action, denně)──► data/players.json ──► našeptávač
                                                                    │
 hráč / pořadatel ──► web na GitHub Pages ◄─────────────────────────┘
                           │  (JSON API)

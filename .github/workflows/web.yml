@@ -1,5 +1,5 @@
 # Sestaví a nasadí formulář na GitHub Pages.
-# Při každém sestavení stáhne aktuální listinu LOK z elo.miramal.com a převede ji
+# Při každém sestavení stáhne aktuální listinu LOK a rapid LOK z elo.miramal.com a převede je
 # na data/players.json, takže našeptávač je vždy aktuální (spouští se i každý den).
 name: Web a listina LOK
 
@@ -40,17 +40,6 @@ jobs:
 
       - id: pages
         uses: actions/configure-pages@v5
-
-      - name: Přehled listin na elo.miramal.com (dočasně, zjištění rapid LOK)
-        continue-on-error: true
-        run: |
-          for u in https://elo.miramal.com/ https://elo.miramal.com/download/; do
-            echo "== $u"
-            curl -fsSL -m 30 "$u" | grep -oiE 'href="[^"]+"' | sort -u | head -100 || true
-          done
-          for f in lok_sm_cz_rapid.xls lok_sm_rapid_cz.xls lok_rapid_sm_cz.xls lokr_sm_cz.xls lok_sm_cz_r.xls rapid_sm_cz.xls lok_sm_cz_blitz.xls; do
-            echo "$f: $(curl -s -o /dev/null -w '%{http_code}' -m 20 https://elo.miramal.com/download/$f)"
-          done
 
       - name: Stáhnout a převést listinu LOK
         env:

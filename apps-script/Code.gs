@@ -25,7 +25,7 @@ const SHEETS = {
   tournaments: {
     name: 'Turnaje',
     cols: ['id', 'eventId', 'order', 'name', 'short', 'day', 'type', 'minBirthYear', 'maxBirthYear',
-      'warnMaxRating', 'capacity', 'boards', 'reserves', 'fee', 'feeRules'],
+      'warnMaxRating', 'capacity', 'boards', 'reserves', 'fee', 'feeRules', 'rating'],
   },
   registrations: {
     name: 'Přihlášky',
@@ -61,6 +61,8 @@ const ROLES = ['superadmin', 'organizer'];
 const CANCELLED = 'zrušeno';
 const RECEIPT_CANCELLED = 'stornováno';
 const FEE_RULE_TYPES = ['women', 'youth', 'senior', 'titles', 'rating'];
+// Který rating turnaj používá (ELO ČR / FIDE): klasická LOK, nebo rapid LOK.
+const RATING_TYPES = ['standard', 'rapid'];
 const MAX_GROUP_PLAYERS = 60;
 const MAX_GROUP_TEAMS = 20;
 const YES = 'ANO';
@@ -254,6 +256,7 @@ function buildEvent_(row, tourRows) {
       reserves: toInt_(t.reserves) || 0,
       fee: t.fee === '' || t.fee == null || isNaN(Number(t.fee)) ? null : Number(t.fee),
       feeRules: parseJson_(t.feeRules, []),
+      rating: RATING_TYPES.indexOf(t.rating) >= 0 ? t.rating : 'standard',
     })),
   };
 }
@@ -379,6 +382,7 @@ function sanitizeEvent_(input, existingEvents, currentId) {
       boards: type === 'team' ? Math.min(Math.max(toInt_(t.boards) || 4, 1), 12) : null,
       reserves: type === 'team' ? Math.min(Math.max(toInt_(t.reserves), 0), 6) : 0,
       fee: cleanPrice_(t.fee),
+      rating: RATING_TYPES.indexOf(t.rating) >= 0 ? t.rating : 'standard',
       feeRules: type === 'team' ? [] : (Array.isArray(t.feeRules) ? t.feeRules : []).slice(0, 10).map((r) => {
         const rt = FEE_RULE_TYPES.indexOf(r && r.type) >= 0 ? r.type : '';
         const price = cleanPrice_(r && r.price);
@@ -532,7 +536,7 @@ function processRegistration_(data, ev, existing, now, opts) {
     extras: JSON.stringify(extras), status: '', orgNote: '', editToken,
     updatedBy: admin ? opts.adminEmail || 'pořadatel' : '',
   };
-  const row = (p, t, more) => Object.assign({ id: makeId_(now, 8) }, base, playerToRow_(p), { tournamentId: t.id }, more || {});
+  const row = (p, t, more) => Object.assign({ id: makeId_(now, 8) }, base, playerToRow_(p, t), { tournamentId: t.id }, more || {});
 
   if (mode === 'individual') {
     // jeden hráč {player, tournaments}, nebo výprava {players: [{player, tournaments}, …]}
@@ -676,11 +680,13 @@ function cleanPlayer_(raw, maxYear) {
     fed: (clean_(raw.fed, 3) || 'CZE').toUpperCase(),
     rn: toInt_(raw.rn),
     rf: toInt_(raw.rf),
+    rnr: toInt_(raw.rnr),
+    rfr: toInt_(raw.rfr),
     clubNo: toInt_(raw.clubNo),
     club: clean_(raw.club, 100),
     status: clean_(raw.status, 3),
   };
-  if (!p.registered) Object.assign(p, { id: 0, rn: 0, rf: 0, title: '', clubNo: 0, status: '' });
+  if (!p.registered) Object.assign(p, { id: 0, rn: 0, rf: 0, rnr: 0, rfr: 0, title: '', clubNo: 0, status: '' });
   if (!p.surname || !p.firstName) return { error: 'Vyplňte jméno a příjmení hráče.' };
   if (!(p.year >= 1900 && p.year <= maxYear)) return { error: `${fullName_(p)}: vyplňte platný rok narození.` };
   if (!p.club) return { error: `${fullName_(p)}: vyplňte klub, nebo u neregistrovaných město.` };
@@ -711,7 +717,14 @@ function cleanExtras_(defs, raw, mode) {
   return out;
 }
 
-function playerToRow_(p) {
+/** Hráč s ratingem podle turnaje: u rapid turnaje rapid ELO ČR a FIDE rapid (z rapid LOK). */
+function ratedFor_(p, t) {
+  if (!t || t.rating !== 'rapid' || (p.rnr == null && p.rfr == null)) return p;
+  return Object.assign({}, p, { rn: toInt_(p.rnr), rf: toInt_(p.rfr) });
+}
+
+function playerToRow_(p, t) {
+  p = ratedFor_(p, t);
   return {
     surname: p.surname, firstName: p.firstName, year: p.year, sex: p.sex, title: p.title,
     idCr: p.id || '', fideId: p.fide || '', rn: p.rn || '', rf: p.rf || '', fed: p.fed,
@@ -1120,7 +1133,7 @@ function applyApplicationChanges_(ev, appRows, eventRows, changes, now, opts) {
       newRows.push(Object.assign({}, {
         applicationId: src.applicationId, eventId: src.eventId, tournamentId: t.id, email: src.email, mode: 'team',
         extras: src.extras, editToken: src.editToken, team: src.team, captain: src.captain, orgNote: '',
-      }, playerToRow_(p), { id: makeId_(now, 8), createdAt: now.toISOString(), status: '', board: i + 1 }));
+      }, playerToRow_(p, t), { id: makeId_(now, 8), createdAt: now.toISOString(), status: '', board: i + 1 }));
       changed = true;
     });
     current.filter((r) => used.indexOf(r) < 0).forEach((r) => { r.status = CANCELLED; touch(r); changed = true; });

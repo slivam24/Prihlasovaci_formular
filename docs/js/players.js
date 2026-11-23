@@ -48,6 +48,8 @@
           sex: r[ix.sex] || '',
           rn: r[ix.rn] || 0,
           rf: r[ix.rf] || 0,
+          rnr: ix.rr != null ? r[ix.rr] || 0 : 0,
+          rfr: ix.rfr != null ? r[ix.rfr] || 0 : 0,
           title: r[ix.title] || '',
           fide: r[ix.fide] || 0,
           fed: r[ix.fed] || 'CZE',
@@ -77,6 +79,10 @@
     filter(f, limit) {
       f = f || {};
       const club = norm(f.club);
+      // přesný název klubu (vybraný ze seznamu) → jen ten klub, jinak část názvu
+      const exact = club && this.clubNames().some((c) => norm(c) === club);
+      const nameWords = norm(f.name).split(/\s+/).filter(Boolean);
+      const clubCounts = {};
       const from = parseInt(f.yearFrom, 10) || 0;
       const to = parseInt(f.yearTo, 10) || 0;
       const clubMatch = {};
@@ -84,7 +90,7 @@
       for (const p of this.players) {
         if (club) {
           const key = p.clubNo + '|' + p.club;
-          if (!(key in clubMatch)) clubMatch[key] = norm(p.club).includes(club);
+          if (!(key in clubMatch)) clubMatch[key] = exact ? norm(p.club) === club : norm(p.club).includes(club);
           if (!clubMatch[key]) continue;
         }
         if (from && p.year < from) continue;
@@ -94,10 +100,17 @@
         if (membership === 'inactive' && isActive(p)) continue;
         if (f.sex === 'F' && p.sex !== 'F') continue;
         if (f.sex === 'M' && p.sex === 'F') continue;
+        if (nameWords.length) {
+          const n = norm(p.name);
+          if (!nameWords.every((w) => n.includes(w))) continue;
+        }
         out.push(p);
+        clubCounts[p.club] = (clubCounts[p.club] || 0) + 1;
       }
       out.sort((a, b) => Math.max(b.rn, b.rf) - Math.max(a.rn, a.rf) || a.name.localeCompare(b.name, 'cs'));
-      return { total: out.length, players: limit ? out.slice(0, limit) : out };
+      const clubs = Object.keys(clubCounts).map((c) => ({ name: c, count: clubCounts[c] }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'cs'));
+      return { total: out.length, players: limit ? out.slice(0, limit) : out, clubs };
     }
 
     /* Hledá podle začátků slov jména bez ohledu na diakritiku a pořadí

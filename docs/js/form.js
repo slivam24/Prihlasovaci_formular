@@ -208,12 +208,18 @@
     wrap.hidden = !ev.tournaments.length;
     if (wrap.hidden) return;
     $('#finder').open = window.matchMedia('(min-width: 1100px)').matches;
-    ['#f-club', '#f-from', '#f-to'].forEach((s) => $(s).addEventListener('input', () => {
+    ['#f-club', '#f-from', '#f-to', '#f-name'].forEach((s) => $(s).addEventListener('input', () => {
       clearTimeout(finderTimer);
       finderTimer = setTimeout(runFinder, 150);
     }));
     ['#f-sex', '#f-member'].forEach((s) => $(s).addEventListener('change', runFinder));
     $('#f-add').addEventListener('click', addFromFinder);
+    $('#f-club-pick').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-club]');
+      if (!b) return;
+      $('#f-club').value = b.dataset.club;
+      runFinder();
+    });
     const only = individualTournaments().length === 1;
     $('#f-team').addEventListener('change', updateFinderButton);
     $('#f-tours').innerHTML = '<span class="small">Přihlásit do:</span>' + individualTournaments().map((t) => {
@@ -259,8 +265,15 @@
       $('#f-actions').hidden = true;
       return;
     }
-    const res = db.filter({ club, yearFrom: from, yearTo: to, sex: $('#f-sex').value, membership: $('#f-member').value }, FINDER_LIMIT);
+    const res = db.filter({ club, yearFrom: from, yearTo: to, sex: $('#f-sex').value, membership: $('#f-member').value,
+      name: $('#f-name').value }, FINDER_LIMIT);
     finderShown = res.players;
+    // víc klubů odpovídá zadanému textu (např. „Ústí“) → nabídnout výběr konkrétního klubu
+    const pick = $('#f-club-pick');
+    const many = club.length >= 2 && res.clubs.length > 1;
+    pick.hidden = !many;
+    pick.innerHTML = many ? `<span class="small muted">Odpovídá ${res.clubs.length} klubům, vyberte:</span>
+      ${res.clubs.slice(0, 12).map((c) => `<button type="button" class="chip" data-club="${esc(c.name)}">${esc(c.name || 'bez klubu')} <strong>${c.count}</strong></button>`).join('')}` : '';
     const inForm = keysInForm();
     $('#f-status').textContent = res.total
       ? `Nalezeno ${res.total} hráčů${res.total > FINDER_LIMIT ? `, zobrazeno prvních ${FINDER_LIMIT} – zužte filtr` : ''}.`
@@ -273,7 +286,7 @@
         return `<label class="finder-row${already ? ' in-form' : ''}">
           <input type="checkbox" data-fid="${esc(p.id)}" ${already || finderSel.has(p.id) ? 'checked' : ''} ${already ? 'disabled' : ''}>
           <span><span><strong>${esc(p.name)}</strong>${p.title ? ` <span class="badge">${esc(p.title)}</span>` : ''}${window.Players.isActive(p) ? '' : ' <span class="badge muted-badge">neaktivní</span>'}</span>
-            <span class="opt-meta">${esc([p.year, p.club, p.rn ? 'ELO ČR ' + p.rn : '', p.rf ? 'FIDE ' + p.rf : ''].filter(Boolean).join(' · '))}${already ? ' · v přihlášce' : ''}</span></span>
+            <span class="opt-meta">${esc([p.year, p.club, p.rn ? 'ELO ČR ' + p.rn : '', p.rf ? 'FIDE ' + p.rf : '', p.rnr ? 'rapid ' + p.rnr : ''].filter(Boolean).join(' · '))}${already ? ' · v přihlášce' : ''}</span></span>
         </label>`;
       }).join('')}` : '';
     const all = $('#f-all');

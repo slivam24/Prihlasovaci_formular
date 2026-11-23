@@ -77,10 +77,12 @@
         <div class="finder-body">
           <div class="grid finder-filters">
             <label class="wide">Klub<input id="f-club" list="f-clubs" placeholder="např. Teplice" autocomplete="off"><datalist id="f-clubs"></datalist></label>
+            <div id="f-club-pick" class="wide finder-clubs" hidden></div>
             <label>Ročník od<input id="f-from" inputmode="numeric" maxlength="4" placeholder="např. 2010"></label>
             <label>Ročník do<input id="f-to" inputmode="numeric" maxlength="4" placeholder="např. 2016"></label>
             <label>Pohlaví<select id="f-sex"><option value="">všichni</option><option value="M">muži / chlapci</option><option value="F">ženy / dívky</option></select></label>
             <label>Členství<select id="f-member"><option value="active">aktivní</option><option value="">všichni</option><option value="inactive">jen neaktivní</option></select></label>
+            <label class="wide">Jméno<input id="f-name" type="search" placeholder="hledat ve výsledcích, např. novák" autocomplete="off"></label>
           </div>
           <p class="hint">„2010 a mladší“ = ročník od 2010. Neaktivní = hráči v listině LOK bez platného členství (kategorie N a další).</p>
           <div id="f-status" class="muted small"></div>

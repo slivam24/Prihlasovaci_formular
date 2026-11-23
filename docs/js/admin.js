@@ -399,6 +399,8 @@
         <label>Krátký název<input data-f="short" value="${esc(t.short || '')}" placeholder="např. Rapid"><span class="hint">do přehledů a exportů</span></label>
         <label>Den<input data-f="day" value="${esc(t.day || '')}" placeholder="např. sobota"></label>
         <label>Typ<select data-f="type">${options(TYPE_LABELS, t.type)}</select></label>
+        <label>Rating<select data-f="rating">${options(R.RATING_LABELS, t.rating || 'standard')}</select>
+          <span class="hint">ELO ČR a FIDE pro nasazení, export a slevy</span></label>
         ${numInput('minBirthYear', 'Jen ročník … a mladší', t.minBirthYear, 'vynucuje se')}
         ${numInput('maxBirthYear', 'Jen ročník … a starší', t.maxBirthYear, 'vynucuje se')}
         ${numInput('warnMaxRating', 'Upozornit nad ELO', t.warnMaxRating, 'jen upozornění')}
@@ -654,7 +656,7 @@
         },
         tournaments: $$('.tour-card', tours).map((c) => ({
           id: c.dataset.id || undefined,
-          name: val(c, 'name'), short: val(c, 'short'), day: val(c, 'day'), type: val(c, 'type'),
+          name: val(c, 'name'), short: val(c, 'short'), day: val(c, 'day'), type: val(c, 'type'), rating: val(c, 'rating'),
           minBirthYear: val(c, 'minBirthYear'), maxBirthYear: val(c, 'maxBirthYear'),
           warnMaxRating: val(c, 'warnMaxRating'), capacity: val(c, 'capacity'),
           boards: val(c, 'boards'), reserves: val(c, 'reserves'), fee: val(c, 'fee'),

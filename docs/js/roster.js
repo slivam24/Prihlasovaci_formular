@@ -52,6 +52,14 @@
       return block ? `soutěž je ${block}` : '';
     }
 
+    // rating podle turnaje (u rapid turnaje rapid LOK)
+    function metaLine(p) {
+      const t = opts.tournament || {};
+      const q = global.Rules && global.Rules.rated ? global.Rules.rated(t, p) : p;
+      const pre = t.rating === 'rapid' ? 'rapid ' : '';
+      return [p.year, p.club, q.rn ? pre + 'ELO ČR ' + q.rn : '', q.rf ? 'FIDE ' + pre + q.rf : ''].filter(Boolean).join(' · ');
+    }
+
     function render() {
       const targets = opts.moveTargets ? opts.moveTargets() : [];
       list.innerHTML = players.map((p, i) => {
@@ -60,7 +68,7 @@
         return `<li class="roster-row${reserve ? ' reserve' : ''}${warn ? ' invalid' : ''}" data-i="${i}">
           <span class="board-no">${reserve ? 'N' + (i - opts.boards + 1) : (i + 1) + '.'}</span>
           <span class="rr-name"><strong>${esc(p.surname)} ${esc(p.firstName)}</strong>
-            <span class="opt-meta">${esc([p.year, p.club, p.rn ? 'ELO ČR ' + p.rn : '', p.rf ? 'FIDE ' + p.rf : ''].filter(Boolean).join(' · '))}</span>
+            <span class="opt-meta">${esc(metaLine(p))}${p.registered === false ? ' <span class="badge muted-badge">mimo LOK</span>' : ''}</span>
             ${warn ? `<span class="t-block">Nelze – ${esc(warn)}</span>` : ''}</span>
           <span class="rr-actions">
             <button type="button" class="link" data-up title="Posunout výš" ${i === 0 ? 'disabled' : ''}>↑</button>
