@@ -12,6 +12,8 @@
   const MONTHS_SHORT = ['led', 'úno', 'bře', 'dub', 'kvě', 'čvn', 'čvc', 'srp', 'zář', 'říj', 'lis', 'pro'];
   const WEEKDAYS = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
   const SEARCH_FROM = 5; // vyhledávání se ukáže od tohoto počtu akcí
+  const KEEP_PAST_DAYS = 5; // proběhlé akce zůstávají v seznamech ještě 5 dní po skončení
+  const recentlyOver = () => new Date(today().getTime() - KEEP_PAST_DAYS * DAY);
 
   // klub.html (data-kind="club"): přehled klubové sekce – stavy přihlašování, filtry, i dlouhodobé soutěže
   const CLUB = document.body.dataset.kind === 'club';
@@ -236,10 +238,11 @@
       });
       weeks.push(`<div class="cal-week" style="grid-template-rows:auto repeat(${Math.max(lanes.length, 1)}, auto)">${days.join('')}${bars.join('')}</div>`);
     }
+    // seznam pod kalendářem: akce měsíce bez těch, které skončily před víc než 5 dny
     const inMonth = events.filter((ev) => {
       const from = parse(ev.dateFrom);
       const to = parse(ev.dateTo) || from;
-      return from && monthKey(from) <= state.month && monthKey(to) >= state.month;
+      return from && monthKey(from) <= state.month && monthKey(to) >= state.month && to >= recentlyOver();
     });
     return `<div class="card cal">
         <div class="cal-head">
@@ -256,16 +259,19 @@
   // ---------- vykreslení ----------
 
   function filtered() {
-    const now = today();
     return state.events.filter((ev) => {
       if (!matches(ev, state.q)) return false;
       if (state.group && ev.group !== state.group) return false;
-      if (!CLUB) return true;
+      if (!CLUB) {
+        // úvodní stránka: proběhlé akce ještě 5 dní po skončení, pak zmizí ze seznamu
+        const over = parse(ev.dateTo) || parse(ev.dateFrom);
+        return state.view !== 'list' || !over || over >= recentlyOver();
+      }
       const st = clubState(ev).key;
       if (state.filter === 'open' && st !== 'open') return false;
       if (state.filter === 'tournaments' && st === 'league') return false;
       const end = parse(ev.dateTo) || parse(ev.dateFrom);
-      if (!state.past && state.view === 'list' && end && end < now) return false;
+      if (!state.past && state.view === 'list' && end && end < recentlyOver()) return false;
       return true;
     });
   }
