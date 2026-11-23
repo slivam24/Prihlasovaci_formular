@@ -233,18 +233,25 @@
 
   let eventsTab = 'events';
   let clubShowPast = false;
+  let clubShowHidden = false;
 
   /** Přehled klubové sekce: každá akce = soutěž z kalendáře, přepínač přihlašování a úpravy přímo v tabulce. */
   function clubListHtml(events) {
     const today = new Date().toISOString().slice(0, 10);
-    const sorted = events.slice().sort((a, b) => String(a.dateFrom).localeCompare(String(b.dateFrom)));
+    const all = events.slice().sort((a, b) => String(a.dateFrom).localeCompare(String(b.dateFrom)));
+    // skryté (archiv) nejsou ve veřejné klubové sekci a v přehledu jen na požádání
+    const hidden = all.filter((ev) => ev.status === 'archiv');
+    const sorted = clubShowHidden ? all : all.filter((ev) => ev.status !== 'archiv');
     const past = sorted.filter((ev) => (ev.dateTo || ev.dateFrom) < today);
     const list = clubShowPast ? sorted : sorted.filter((ev) => (ev.dateTo || ev.dateFrom) >= today);
     const open = sorted.filter((ev) => R.eventState(ev).key === 'open').length;
     return `<div class="card">
       <div class="page-head"><p class="small muted">${R.plural(sorted.length, 'akce', 'akce', 'akcí')} v klubové sekci, přihlašování otevřeno u ${open}.
         Veřejný přehled: <a href="klub.html" target="_blank">klubová sekce ↗</a></p>
-        <button type="button" class="link" id="club-past">${clubShowPast ? 'jen nadcházející' : `zobrazit i proběhlé (${past.length})`}</button></div>
+        <span class="actions">
+          ${hidden.length ? `<button type="button" class="link" id="club-hidden">${clubShowHidden ? 'bez skrytých' : `zobrazit skryté (${hidden.length})`}</button>` : ''}
+          <button type="button" class="link" id="club-past">${clubShowPast ? 'jen nadcházející' : `zobrazit i proběhlé (${past.length})`}</button>
+        </span></div>
       <div class="table-wrap"><table class="admin-table cal-admin">
         <thead><tr><th>Termín</th><th>Akce</th><th>Místo</th><th>Přihlašování</th><th>Uzávěrka</th><th class="num">Přihl.</th><th></th></tr></thead>
         <tbody>${list.map((ev) => {
@@ -261,7 +268,12 @@
             <td>${t && t.deadline ? esc(R.formatDate(t.deadline)) : ''}</td>
             <td class="num">${ev.registrations || ''}</td>
             <td class="row-actions">${t && ev.tournaments.length === 1 ? `<button type="button" class="link" data-club-edit="${esc(ev.id)}">Upravit</button>` : ''}
-              <a href="#/akce/${esc(ev.id)}/upravit">Editor</a></td>
+              <a href="#/akce/${esc(ev.id)}/upravit">Editor</a>
+              ${ev.status === 'archiv'
+                ? `<button type="button" class="link" data-club-show="${esc(ev.id)}" title="Znovu zobrazit v klubové sekci">Zobrazit</button>`
+                : ev.registrations
+                  ? `<button type="button" class="link danger" data-club-hide="${esc(ev.id)}" title="Má přihlášky – turnaj se jen skryje z klubové sekce">Skrýt</button>`
+                  : `<button type="button" class="link danger" data-club-delete="${esc(ev.id)}">Smazat</button>`}</td>
           </tr>`;
         }).join('')}</tbody></table></div></div>`;
   }
@@ -300,6 +312,32 @@
         <tbody>${rows}</tbody></table></div>`
         : '<div class="card"><p>Zatím tu nejsou žádné akce. Začněte tlačítkem „Nová akce“.</p></div>'}`;
 
+    const hiddenBtn = $('#club-hidden');
+    if (hiddenBtn) hiddenBtn.addEventListener('click', () => { clubShowHidden = !clubShowHidden; renderEvents(data); });
+    const setStatus = async (id, status) => {
+      const ev = data.events.find((e) => e.id === id);
+      try {
+        const res = await call('saveEvent', { event: Object.assign({}, ev, { status }) });
+        ev.status = res.event.status;
+        delete memo.event[id];
+        renderEvents(data);
+      } catch (e) { alert(e.message); }
+    };
+    $$('[data-club-hide]').forEach((b) => b.addEventListener('click', () => {
+      const ev = data.events.find((e) => e.id === b.dataset.clubHide);
+      if (confirm(`Skrýt „${ev.name}“ z klubové sekce? Turnaj má přihlášky, ty zůstanou zachované. Zobrazit ho půjde přes „zobrazit skryté“.`)) setStatus(ev.id, 'archiv');
+    }));
+    $$('[data-club-show]').forEach((b) => b.addEventListener('click', () => setStatus(b.dataset.clubShow, 'otevreno')));
+    $$('[data-club-delete]').forEach((b) => b.addEventListener('click', async () => {
+      const ev = data.events.find((e) => e.id === b.dataset.clubDelete);
+      if (!confirm(`Smazat „${ev.name}“ (${R.formatRange(ev.dateFrom, ev.dateTo)}) z klubové sekce? Nejde to vrátit.`)) return;
+      try {
+        await call('deleteEvent', { id: ev.id });
+        data.events = data.events.filter((e) => e.id !== ev.id);
+        delete memo.event[ev.id];
+        renderEvents(data);
+      } catch (e) { alert(e.message); }
+    }));
     const pastBtn = $('#club-past');
     if (pastBtn) pastBtn.addEventListener('click', () => { clubShowPast = !clubShowPast; renderEvents(data); });
     const savedInList = (res) => {
