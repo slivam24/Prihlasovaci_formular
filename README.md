@@ -13,6 +13,8 @@ s **našeptáváním z listiny LOK**. Přihlášky jde exportovat **přímo pro 
 - **věkové podmínky turnajů se vynucují**, u limitu ELO formulář jen upozorní,
 - přihláška **družstva** jedním formulářem (kapitán + hráči na šachovnicích),
 - potvrzovací e-mail a veřejný seznam přihlášených (`seznam.html?akce=<adresa>`).
+- **O aplikaci** (`o-aplikaci.html`, odkaz v patičce): návod pro hráče, kluby a pořadatele a **seznam změn**
+  (při nové funkci doplňte záznam nahoru do oddílu „Seznam změn“).
 
 **Pro pořadatele** (`admin.html`, přihlášení Google účtem)
 - zakládání a úpravy akcí: termín, uzávěrka, stav, propozice, správci,
@@ -80,7 +82,7 @@ hráč / pořadatel ──► web na GitHub Pages ◄─────────
 
 | Cesta | Co to je |
 |---|---|
-| `docs/` | web (GitHub Pages): `index.html`, `prihlaska.html`, `seznam.html`, `admin.html` |
+| `docs/` | web (GitHub Pages): `index.html`, `prihlaska.html`, `seznam.html`, `admin.html`, `o-aplikaci.html` (návod a seznam změn) |
 | `docs/config.json` | adresa backendu (`apiUrl`), Google Client ID, věkové kategorie pro export |
 | `docs/js/` | `players.js` (našeptávač), `picker.js` (výběr hráče), `rules.js` (pravidla turnajů), `sm.js` (export SM), `admin.js` … |
 | `apps-script/Code.gs` | backend: API, databáze nad Google Sheetem, e-maily, ověření přihlášení |

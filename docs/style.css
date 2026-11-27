@@ -494,6 +494,13 @@ section > .step-title { margin-bottom: 4px; }
 .prose h2:first-child { margin-top: 0; }
 .prose ul { padding-left: 20px; }
 .prose li + li { margin-top: 6px; }
+.steps-list { padding-left: 22px; }
+.steps-list li + li { margin-top: 6px; }
+.about-toc { margin-top: 12px; }
+.prose h3 { margin-top: 20px; }
+.prose article, .card.prose { scroll-margin-top: 16px; }
+.changelog h3 { font-size: 0.95rem; color: var(--muted); margin: 18px 0 4px; }
+.changelog h3:first-child { margin-top: 4px; }
 .controller { padding: 10px 14px; border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 6px; }
 .print-bar .chip { text-decoration: none; }
 .print-bar .chip.active { background: var(--accent); color: var(--accent-text); }

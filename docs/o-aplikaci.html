@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>O aplikaci</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <p class="back small"><a href="./">← Všechny akce</a></p>
+      <h1>O aplikaci</h1>
+      <p class="muted">Přihlášky na šachové turnaje – přihlašování hráčů a družstev s doplněním údajů z listiny LOK,
+        správa akcí pro pořadatele a export do Swiss-Manageru.</p>
+      <nav class="toc about-toc" aria-label="Obsah">
+        <a href="#hraci">Návod pro hráče</a>
+        <a href="#klub">Klubová sekce</a>
+        <a href="#poradatele">Návod pro pořadatele</a>
+        <a href="#zmeny">Seznam změn</a>
+      </nav>
+    </header>
+
+    <!-- ===================== HRÁČI ===================== -->
+    <article class="card prose" id="hraci">
+      <h2>Návod pro hráče</h2>
+
+      <h3>Najít akci</h3>
+      <ul>
+        <li>Na <a href="./">úvodní stránce</a> jsou akce s otevřeným přihlašováním, seřazené po měsících.
+          Přepínačem <strong>Seznam / Kalendář</strong> je zobrazíte i v měsíčním kalendáři.</li>
+        <li>Barvy odpovídají termínovému kalendáři (krajské, republikové, mládež…). Kliknutím na položku legendy
+          zobrazíte jen akce dané barvy.</li>
+        <li>Je-li akcí víc, můžete hledat podle názvu, místa nebo turnaje.</li>
+        <li>Odkazem <em>Do kalendáře</em> si akci uložíte do svého kalendáře (Google, Outlook, telefon).</li>
+      </ul>
+
+      <h3>Přihlásit se</h3>
+      <ol class="steps-list">
+        <li>U akce klikněte na <strong>Přihlásit se</strong>.</li>
+        <li>Vyplňte <strong>e-mail</strong> – přijde na něj potvrzení a odkaz pro pozdější změny.
+          Přihlašujete-li víc hráčů, uveďte e-mail vedoucího výpravy.</li>
+        <li>Začněte psát <strong>příjmení hráče</strong> a vyberte ho z nabídky. Ročník, klub, ELO ČR, FIDE rating, ID a titul
+          se doplní z listiny LOK samy. Hráče, který v LOK není, zadáte ručně.</li>
+        <li>Zaškrtněte <strong>turnaj</strong>. Formulář hlídá povolené ročníky; u limitu ELO jen upozorní.
+          U turnaje s věkovými kategoriemi zvolte kategorii (do mladší kategorie hráč nesmí, do starší ano).</li>
+        <li>Vyplňte <strong>doplňující údaje</strong> (ubytování, obědy, doprava…), pokud je pořadatel požaduje.
+          Ve formuláři uvidíte částku k úhradě včetně případných slev.</li>
+        <li>Klikněte na <strong>Odeslat přihlášku</strong>. Na e-mail přijde potvrzení.</li>
+      </ol>
+
+      <h3>Přihláška celé výpravy</h3>
+      <ul>
+        <li>Tlačítkem <strong>+ Přidat dalšího hráče</strong> přidáte dalšího hráče; převezme turnaje od předchozího.</li>
+        <li>Panel <strong>Vybrat hráče z listiny</strong> (vpravo, na mobilu pod formulářem) najde hráče podle klubu, ročníku,
+          pohlaví a členství. Vybrané přidáte do přihlášky jedním tlačítkem.</li>
+      </ul>
+
+      <h3>Přihláška družstva</h3>
+      <ul>
+        <li>V kroku 1 zvolte <strong>Přihlašuji: družstvo</strong>, vyplňte název družstva a kapitána / vedoucího.</li>
+        <li>Hráče přidejte našeptávačem nebo z panelu <em>Vybrat hráče z listiny</em>. Pořadí na soupisce měníte šipkami –
+          pořadí určuje šachovnice, další hráči jsou náhradníci.</li>
+        <li>Jedna přihláška může obsahovat víc družstev. Soupisku můžete doplnit později přes odkaz z e-mailu.</li>
+      </ul>
+
+      <h3>Změna nebo odhláška</h3>
+      <ul>
+        <li>V potvrzovacím e-mailu je odkaz pro <strong>odhlášení nebo změnu</strong>. Přes něj odhlásíte hráče z turnaje (nebo odhlášku vrátíte),
+          upravíte soupisku družstva a změníte ubytování, obědy či dopravu.</li>
+        <li>Změny jsou možné <strong>do dne před začátkem akce</strong>. O každé změně dostanete e-mail vy i pořadatel.</li>
+        <li>Později už změny řešte přímo s pořadatelem.</li>
+      </ul>
+
+      <h3>Seznam přihlášených</h3>
+      <p>Po odeslání přihlášky i v e-mailu je odkaz na veřejný <strong>seznam přihlášených</strong> (jméno, ročník, klub, rating).
+        E-mail ani doplňující údaje se nezveřejňují. Podrobnosti najdete na stránce
+        <a href="ochrana-udaju.html">Zpracování osobních údajů</a>.</p>
+    </article>
+
+    <!-- ===================== KLUB ===================== -->
+    <article class="card prose" id="klub">
+      <h2>Klubová sekce (pro členy klubu)</h2>
+      <p><a href="klub.html">Klubová sekce</a> je termínový kalendář klubu se soutěžemi sezóny. Slouží k tomu, abyste se
+        <strong>přihlásili klubu</strong> a trenér pak poslal pořadateli hromadnou přihlášku za celou výpravu.</p>
+      <ul>
+        <li>U každé soutěže je stav: <em>přihlašování otevřeno</em> (tlačítko <strong>Přihlásit se</strong>),
+          <em>výpravu nepořádáme</em> nebo <em>dlouhodobá soutěž</em>.</li>
+        <li>Klub má vlastní <strong>klubovou uzávěrku</strong>, obvykle 2 dny před uzávěrkou pořadatele. Po ní se přihlašování zavře.</li>
+        <li>Filtry nahoře zobrazí jen soutěže s otevřeným přihlašováním nebo skryjí dlouhodobé soutěže.
+          Volba <em>i proběhlé</em> ukáže také starší akce.</li>
+        <li>Přihláška se vyplňuje stejně jako na běžnou akci, včetně odkazu na změnu v e-mailu.</li>
+      </ul>
+    </article>
+
+    <!-- ===================== POŘADATELÉ ===================== -->
+    <article class="card prose" id="poradatele">
+      <h2>Návod pro pořadatele</h2>
+
+      <h3>Přihlášení a role</h3>
+      <ul>
+        <li>Administrace je na stránce <a href="admin.html">Přihlášení pro pořadatele</a>. Přihlásíte se Google účtem,
+          který vám hlavní správce přidal do seznamu správců.</li>
+        <li><strong>Hlavní správce</strong> vidí vše a spravuje ostatní správce (menu <em>Správci</em>).</li>
+        <li><strong>Pořadatel</strong> vidí v <em>Pořadatelské sekci</em> akce, které založil nebo u kterých je uveden
+          v poli „Další správci akce“.</li>
+        <li><strong>Klubový admin</strong> spravuje celou <em>Klubovou sekci</em> a k tomu své vlastní akce.</li>
+        <li>Pořadatelská a klubová sekce se navzájem neovlivňují: každá má své akce a doklady mají oddělené číselné řady.</li>
+      </ul>
+
+      <h3>Založit akci</h3>
+      <ol class="steps-list">
+        <li>Klikněte na <strong>+ Nová akce</strong>. Druhou možností je <strong>Importovat z propozic (AI)</strong>:
+          zkopírujte zadání, vložte ho s textem propozic do ChatGPT nebo Clauda, odpověď vložte zpět a akce se otevře
+          vyplněná v editoru. Vše před uložením zkontrolujte.</li>
+        <li>Vyplňte název, termín, místo, uzávěrku, odkaz na propozice a kontaktní e-mail.</li>
+        <li>Přidejte <strong>turnaje</strong> (<em>+ Přidat turnaj</em>): jednotlivci nebo družstva, povolené ročníky, ELO limit,
+          kapacita, počet šachovnic, věkové kategorie, rating klasický nebo rapid.</li>
+        <li>Podle potřeby přidejte <strong>doplňující otázky</strong>. Obědy a ubytování s cenou jsou připravené jako předvolby.</li>
+        <li>V části <em>Startovné a doklady</em> nastavte startovné, slevy (ženy, mládež, senioři, tituly, ELO – platí nejnižší cena)
+          a údaje klubu pro pokladní doklady.</li>
+        <li>Zvolte stav <strong>otevřeno</strong> a akci uložte. Objeví se na úvodní stránce.</li>
+      </ol>
+      <p>Akce z minulého roku se dá zkopírovat tlačítkem <strong>Kopírovat akci</strong>. Po zadání nového data začátku
+        se posunou všechna data i povolené ročníky.</p>
+
+      <h3>Přihlášky</h3>
+      <ul>
+        <li>V detailu akce jsou přihlášky po turnajích. Přihlášku můžete zrušit, obnovit, upravit nebo k ní připsat poznámku.
+          Hráče přidáte ručně tlačítkem <em>+ Přidat hráče</em>.</li>
+        <li><strong>Přepočítat rating z LOK</strong> aktualizuje ELO ČR a FIDE rating přihlášených podle aktuální listiny
+          (u rapid turnajů z rapid LOK). Před uložením se zobrazí náhled změn.</li>
+        <li>Soupisku družstva upravíte tlačítkem <em>Upravit soupisku</em>.</li>
+        <li>Souhrn doplňujících otázek ukazuje, kolik lidí chce ubytování, obědy, dopravu…</li>
+        <li>Všechny změny přihlášek se zapisují. Zobrazíte je tlačítkem <em>Zobrazit všechny změny</em>.</li>
+      </ul>
+
+      <h3>Exporty</h3>
+      <ul>
+        <li><strong>Swiss-Manager</strong>: u každého turnaje tlačítka <em>.TXT</em> a <em>.xlsx</em>. U družstev
+          <em>Družstva .TXT</em> (importujte první) a <em>Hráči .TXT</em>.</li>
+        <li><strong>Přihlášky, doplňky a změny (.xlsx)</strong> – všechny přihlášky, osoby s doplňujícími údaji a záznam změn.</li>
+      </ul>
+
+      <h3>Platby, doklady a prezence</h3>
+      <ul>
+        <li><strong>Platby a doklady</strong>: položky k úhradě (startovné, obědy, ubytování…), filtr podle klubu a kategorie.
+          Doklad vystavíte za vybrané položky jako jeden doklad, po hráčích nebo po přihláškách. Doklad jde vytisknout,
+          uložit jako PDF nebo stornovat. K dispozici jsou i prázdné doklady k ručnímu vyplnění.</li>
+        <li><strong>Seznam k prezenci</strong> k tisku: po jménech, po přihláškách nebo po klubech, vždy s částkou,
+          kterou je ještě potřeba zaplatit.</li>
+      </ul>
+
+      <h3>Správa klubové sekce</h3>
+      <ul>
+        <li>V administraci otevřete <strong>Klubová sekce</strong>. Soutěže termínového kalendáře jsou už založené.</li>
+        <li>Tlačítkem <strong>Otevřít přihlašování</strong> zpřístupníte soutěž členům. Zadáte klubovou uzávěrku,
+          výchozí jsou 2 dny před uzávěrkou pořadatele.</li>
+        <li>Tlačítkem <em>Upravit</em> doplníte poznámku, propozice a věkové kategorie.</li>
+        <li>Turnaj bez přihlášek můžete <strong>smazat</strong>. Turnaj s přihláškami můžete <strong>skrýt</strong>
+          a později znovu zobrazit.</li>
+        <li>U turnaje je export <strong>pro pořadatele</strong> (Excel a text do e-mailu) a pro Swiss-Manager.</li>
+      </ul>
+
+      <h3>E-maily, zálohy a osobní údaje</h3>
+      <ul>
+        <li>Google dovolí odeslat zhruba 100 e-mailů denně. Co se kvůli limitu neodešle, čeká ve frontě a odešle se automaticky.
+          V administraci se zobrazí upozornění.</li>
+        <li>Tabulka s daty se každou noc zálohuje na Disk, pokud se změnila.</li>
+        <li>E-maily a poznámky se 12 měsíců po akci automaticky mažou.</li>
+      </ul>
+    </article>
+
+    <!-- ===================== SEZNAM ZMĚN ===================== -->
+    <article class="card prose" id="zmeny">
+      <h2>Seznam změn</h2>
+      <p class="muted small">Nejnovější změny jsou nahoře.</p>
+
+      <section class="changelog">
+        <h3><time datetime="2026-11-27">27. 11. 2026</time></h3>
+        <ul>
+          <li>Nová stránka <strong>O aplikaci</strong> s návodem pro hráče, kluby a pořadatele a se seznamem změn.</li>
+        </ul>
+
+        <h3><time datetime="2026-11-23">23. 11. 2026</time></h3>
+        <ul>
+          <li>Proběhlé akce zůstávají v seznamu i pod kalendářem jen 5 dní po skončení.</li>
+          <li>Klubová sekce: turnaj bez přihlášek jde smazat, turnaj s přihláškami skrýt a znovu zobrazit.</li>
+          <li>Kalendář: vícedenní akce se zobrazují jako souvislý pruh, řádky jsou kompaktnější, sobota je zvýrazněná a širší.</li>
+          <li>Pořadatelská a klubová sekce se navzájem neovlivňují. Každá má vlastní akce i číselnou řadu dokladů.</li>
+          <li>Nová role <strong>klubový admin</strong> a rozdělení administrace na pořadatelskou a klubovou sekci.</li>
+          <li>Klubová sekce jako samostatný přehled (<a href="klub.html">klub.html</a>). Každá soutěž je samostatná akce.
+            Akce mají barvy podle termínového kalendáře a legendu, která zároveň filtruje.</li>
+          <li><strong>Věkové kategorie</strong> v turnajích. Klubová uzávěrka je výchozí 2 dny před uzávěrkou pořadatele.</li>
+          <li>Klubový termínový kalendář 2026/2027 se všemi soutěžemi sezóny. Klubový admin u nich otevírá přihlašování.</li>
+          <li>Klubová sekce: přihlášky do klubu na turnaje z kalendáře a export pro pořadatele.</li>
+          <li><strong>Přepočet ratingu</strong> přihlášených podle aktuální LOK a rapid LOK.</li>
+          <li><strong>Rapid LOK</strong> pro rapid turnaje. Panel hráčů umí vybrat klub a hledat podle jména.</li>
+        </ul>
+
+        <h3><time datetime="2026-11-22">22. 11. 2026</time></h3>
+        <ul>
+          <li>Úvodní stránka: kompaktní seznam po měsících, <strong>kalendář</strong>, hledání a uložení akce do vlastního kalendáře.</li>
+          <li>V kalendáři vyplní jediná akce v daném dni celé políčko.</li>
+        </ul>
+
+        <h3><time datetime="2026-11-21">21. 11. 2026</time></h3>
+        <ul>
+          <li>Fronta e-mailů při vyčerpaném denním limitu, volitelné odesílání přes Brevo, denní zálohy,
+            mazání osobních údajů 12 měsíců po akci.</li>
+          <li><strong>Seznam k prezenci</strong> (po jménech, přihláškách, klubech) a stránka o zpracování osobních údajů.</li>
+          <li>Export družstev pro Swiss-Manager ve dvou souborech, stejně jako je exportuje SM.</li>
+          <li>Grafické úpravy: lepší kontrast, číslované kroky formuláře, přehlednější administrace.</li>
+          <li><strong>Startovné se slevami</strong>, platby a příjmové pokladní doklady, prázdné doklady k tisku.</li>
+          <li>Kopírování akce podle nového data začátku.</li>
+          <li>Družstva: víc družstev v jedné přihlášce, doplnění soupisky později, úprava soupisky.</li>
+          <li>Obědy a ubytování jako počty kusů s cenou, předvolby v editoru.</li>
+          <li>Rychlejší načítání stránek.</li>
+          <li><strong>Změna přihlášky</strong> odkazem z e-mailu a záznam všech změn.</li>
+          <li>Import akce z propozic přes AI.</li>
+          <li>Hromadná přihláška výpravy a panel <em>Vybrat hráče z listiny</em> s filtrem členství.</li>
+          <li>Administrace pro více akcí a správců, export pro Swiss-Manager.</li>
+          <li>První verze: přihlašovací formulář s našeptáváním z LOK.</li>
+        </ul>
+      </section>
+    </article>
+
+    <footer class="footer links"><a href="./" class="muted">Všechny akce</a>
+      <a href="klub.html" class="muted">Klubová sekce</a>
+      <a href="ochrana-udaju.html" class="muted">Zpracování osobních údajů</a>
+      <a href="admin.html" class="muted">Přihlášení pro pořadatele</a></footer>
+  </main>
+</body>
+</html>
